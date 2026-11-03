@@ -19,7 +19,7 @@ Unless stated otherwise, numbers are for the out-of-time test (Jan to Mar 2020):
 | Cost-based rule: net profit over the quarter | 945.5M CU | 991.8M CU |
 | Decline reasons | Points below each variable's maximum, from the score's own formula; they add up to the score exactly (section 7.4) | SHAP; contributions add up exactly to the model's raw log-odds |
 
-**Developer's recommendation.** Approve the challenger for a controlled champion/challenger test on 20% of applications, stratified by product, not for a full switch. The conditions are in section 11.2. The most important three: recalibrate the PD on the latest mature vintage (it ran 10% low on the test quarter); get Compliance decisions on the calibration gaps by sex and age (section 8.5); and monitor calibration and early delinquency, not only score stability, because score stability alone missed the 2020 shift (section 10.2).
+**Developer's recommendation.** Approve the challenger for a controlled champion/challenger test on 20% of applications, stratified by product, not for a full switch. A larger scorecard recovers little of the gap: with its 18-variable cap lifted (23 variables, same rules) it reaches a test Gini of 0.490, closing 2.8 of the 11.6 points (section 6.1). The three most important conditions (section 11.2): recalibrate the PD on the latest mature vintage (it ran 10% low on the test quarter); get Compliance decisions on the calibration gaps by sex and age (section 8.5); and monitor calibration and early delinquency, not only score stability, because score stability alone missed the April 2020 break (section 10.2).
 
 **Main risks.** No outcomes exist for applicants the old policy rejected. The PD level drifts when the base rate moves. The model under-predicts the risk of men and of 18-24-year-olds (calibration ratio 0.73 for both). Its largest input, years with current employer, is the field whose data capture broke in April 2020.
 
@@ -50,10 +50,10 @@ Unless stated otherwise, numbers are for the out-of-time test (Jan to Mar 2020):
 **Intended use**
 
 - Score a new application for a cash loan, a point-of-sale loan or a revolving card in this lender's consumer portfolio, at the moment of the decision. Only information dated strictly before the decision date is used (point-in-time).
-- Feed the cost-based rule. With the challenger, the rule approves 90.7% of test-quarter applications. The three-tier version sends 86.6% to Auto-approve, 5.0% to Manual review (3,711 a month on booked-loan volume, the assumed review capacity; the queue must be reset on through-the-door volume) and 8.4% to Decline. Cut-off analysis: [cutoff_and_swap_set.md](cutoff_and_swap_set.md).
+- Feed the cost-based rule. With the challenger, the rule approves 90.7% of test-quarter applications. The three-tier version sends 86.6% to Auto-approve, 5.0% to Manual review and 8.4% to Decline. Review is capacity-bound: 3,711 cases a month (5% of applications, on booked-loan volume) is the team's full assumed capacity, while about 5,988 a month would be worth reviewing under the review assumptions, so the cases where review is worth most are kept. The queue must be reset on through-the-door volume. Cut-off analysis: [cutoff_and_swap_set.md](cutoff_and_swap_set.md).
 - Give up to four principal reasons for each decline or referral (section 7).
 - Users: Credit Policy owns the cut-offs, Underwriting Operations works the review queue, Risk Analytics runs the monitoring.
-- Route to production: a randomised champion/challenger test with 20% of applications on the challenger, stratified by product. About 32,438 approved loans per arm are needed to detect the gap between the two approved-book bad rates (3.57% vs 3.17%; two-sided 5% test, 80% power). That is roughly 2.4 months at booked-loan volume (through-the-door volume sets the real duration), then the outcome window.
+- Route to production: a randomised champion/challenger test with 20% of applications on the challenger, stratified by product. With arms in a 1:4 ratio, detecting the gap between the two approved-book bad rates (3.57% vs 3.17%; two-sided 5% test, 80% power) needs 20,544 approved loans in the challenger arm and 82,176 in the champion arm (Fleiss, Levin & Paik unequal-allocation formula): about 1.5 months at booked-loan volume (through-the-door volume sets the actual duration), then the outcome window.
 
 **Out of scope**
 
@@ -97,7 +97,7 @@ All 1,526,659 loans were booked, so outcomes exist only for applicants the histo
 
 ### 3.4 Time windows
 
-The split is strictly by decision month; there is no random split anywhere ([config.yaml](../config.yaml)).
+The credit models are fitted, calibrated and tested on windows split strictly by decision month ([config.yaml](../config.yaml)); no random split is used for them. The only random split is in the fair-lending proxy check (section 8.3: 70/30 within the training window), which predicts sex and age, not default.
 
 | Window | Decision dates | Loans | Defaults | Bad rate | Used for |
 |---|---|---|---|---|---|
@@ -107,7 +107,7 @@ The split is strictly by decision month; there is no random split anywhere ([con
 | Monitoring | Apr 2020 to 5 Oct 2020 | 233,216 | 5,117 | 2.19% | monitoring back-test only |
 | All | 1 Jan 2019 to 5 Oct 2020 | 1,526,659 | 47,994 | 3.14% | |
 
-The population moves between windows. The bad rate rises from 2.96% (train) to 4.41% (test), then roughly halves to 2.19% in the COVID-period monitoring window, when monthly volume fell from 60,748 loans in March 2020 to 8,289 in April. New-to-lender clients fall from 23.0% of loans (train) to 17.6% (test) and 14.9% (monitoring). Point-of-sale loans are 66.1% of the training window and 60.5% of the test window.
+The population moves between windows. The bad rate rises from 2.96% (train) to 4.41% (test), then roughly halves to 2.19% in the April to October 2020 monitoring window. Monthly volume fell by about 86% in one month (60,748 loans in March 2020, 8,289 in April) and was back to March's level by September (61,905); October covers 1 to 5 October only. New-to-lender clients fall from 23.0% of loans (train) to 17.6% (test) and 14.9% (monitoring). Point-of-sale loans are 66.1% of the training window and 60.5% of the test window.
 
 ### 3.5 Data quality: the 14-day look-ahead leak
 
@@ -133,12 +133,12 @@ The features are defined in `CATALOG` in [src/features.py](../src/features.py). 
 
 ### 4.2 How the 90 were chosen
 
-All 294 raw columns were reviewed one by one against written rules: 41 kept as provided, 27 rebuilt point-in-time, 223 dropped and 3 kept for fairness testing only. The decision and the reason for every column are in [feature_inclusion_log.csv](feature_inclusion_log.csv). The 223 drops: short-window or current-status snapshot fields (49), almost empty or constant (38), fair-lending exclusions (33), duplicates of a kept field (30), no measurable signal (26), unstable coverage or meaning (15), tax-authority fields that arrive after the decision (11), fields dated after the decision or describing a post-decision event (13), outputs of the lender's own pricing or targeting (5), fields collected only from mid-2019 (2), and one identifier.
+All 294 raw columns were reviewed one by one against written rules: 41 kept as provided, 27 rebuilt point-in-time, 223 dropped and 3 kept only for fair-lending tests (never inputs to either model). The decision and the reason for every column are in [feature_inclusion_log.csv](feature_inclusion_log.csv). The 223 drops: short-window or current-status snapshot fields (49), almost empty or constant (38), fair-lending exclusions (33), duplicates of a kept field (30), no measurable signal (26), unstable coverage or meaning (15), tax-authority fields that arrive after the decision (11), fields dated after the decision or describing a post-decision event (13), outputs of the lender's own pricing or targeting (5), fields collected only from March 2019 (2), and one identifier.
 
 ### 4.3 Point-in-time rules (summary)
 
 - Only information dated strictly before the decision date is used.
-- Previous applications ([sql/03](../sql/03_int_applprev_pit.sql)): only applications created before the decision are used (144,679 later rows, 2.2%, are removed), at most the 15 most recent. "Approved" means an approval date before the decision, not the snapshot status.
+- Previous applications ([sql/03](../sql/03_int_applprev_pit.sql)): only applications created before the decision are used (144,679 rows created on or after the decision date, 2.2%, are removed), at most the 15 most recent. "Approved" means an approval date before the decision, not the snapshot status.
 - Days past due on previous contracts are used as recorded only if the contract closed before the decision. Otherwise they are reduced by 14 days and floored at 0, a guaranteed lower bound of what was known. Snapshot balances (current debt, current days past due) are not used.
 - Internal snapshot ([sql/02](../sql/02_stg_static.sql)): dated "last event" fields are never used raw; they are rebuilt from previous applications. Snapshot aggregates with a look-back under 6 months, current-status fields, tax-authority fields and columns rolled out part-way through 2019 are not used. Maximum days-past-due fields are set to 0 when the delinquency could have happened entirely after the decision.
 - Credit bureau: the provided "30-day" window covers 16 days before to 14 days after the decision. Only window differences are used (for example 180 days minus 30 days), which end 16 days before the decision.
@@ -146,14 +146,14 @@ All 294 raw columns were reviewed one by one against written rules: 41 kept as p
 
 ### 4.4 Fair-lending exclusions
 
-Never used as model inputs: sex and gender; birth date and age; marital and family status; number of children and dependents; education; language; profession; income type (it contains pension and disability categories); addresses, districts and zip codes; relationship and role fields, including the persons accompanying the applicant; and a flag for sudden changes in socio-demographic data. Sex, age (from the applicant's birth date) and income type are kept, prefixed `fair_`, only to test outcomes by group (section 8). Interest-rate and marketing-campaign fields are also excluded, as outputs of the lender's own pricing and targeting ([assumptions.md](assumptions.md), P4).
+Never used as model inputs: sex and gender; birth date and age; marital and family status; number of children and dependents; education; language; profession; income type (it contains pension and disability categories); addresses, districts and zip codes; relationship and role fields, including the persons accompanying the applicant; and a flag for sudden changes in socio-demographic data. Sex and age (from the applicant's birth date) are kept, prefixed `fair_`, only to test outcomes by group (section 8); income type is kept only for the section 8 experiment that adds employment status, grouped from it, as an input. Interest-rate and marketing-campaign fields are also excluded, as outputs of the lender's own pricing and targeting ([assumptions.md](assumptions.md), P4).
 
 ## 5. Development
 
 ### 5.1 Champion: WOE logistic-regression scorecard
 
 1. **Binning.** Monotonic optimal binning (optbinning) of all 90 candidates on the training window. The trend (ascending or descending) is chosen automatically, with at most 6 bins of at least 2% of loans each. Missing values get their own bin.
-2. **Selection,** in descending order of Information Value (IV): IV of at least 0.02 (29 candidates failed); IV of at most 0.8 (none failed); absolute WOE correlation of at most 0.6 with every variable already selected (22 failed); at most 18 variables (21 candidates with enough IV came after the cap was reached).
+2. **Selection,** in descending order of Information Value (IV): IV of at least 0.02 (29 candidates failed); IV of at most 0.8 (none failed); absolute WOE correlation of at most 0.6 with every variable already selected (22 failed); at most 18 variables (21 candidates with enough IV came after the cap was reached; with the cap lifted, the same rules keep 23 variables, section 6.1).
 3. **Fit.** Logistic regression on the WOE values (scikit-learn, L2 penalty, C = 1.0).
 4. **Sign check.** Every coefficient must be negative (a higher WOE means safer). Two variables flipped sign through collinearity and were removed before refitting: share of repaid loans ever paid late, and instalments paid late. Result: **16 variables**.
 5. **Scaling.** PDO 20, 600 points at odds of 50:1, no rounding. Points are on the raw (pre-calibration) scale: 600 points is a raw PD of 1.96% and a calibrated PD of 2.40%. The possible range is 470 to 668 points. The break-even PDs translate into cut-offs of 524 points (cash loan), 544 (revolving) and 564 (point-of-sale).
@@ -216,11 +216,11 @@ The two parameters are fitted as an effectively unpenalised logistic regression 
 | Challenger | 0.948 | 0.093 |
 | Champion | 0.984 | 0.144 |
 
-On the validation window the mean PD equals the bad rate for both models (calibration ratio 1.00). On the test quarter, which defaulted more (4.41%), both under-predict (section 6.4).
+On the validation window the mean PD equals the bad rate for both models (calibration ratio 1.00). The level then moved with the base rate: by month, predicted PDs ran 6% to 18% below actual in January to March 2020 and 34% to 66% above it from April 2020 (both models; sections 6.4 and 10.2).
 
 ### 5.4 Class imbalance
 
-Defaults are 2.96% of the training window (24,564 loans). Neither model uses resampling or class weights; the cut-off comes from costs instead. Evidence from notebook 03 (`imbalance_experiment.parquet`, test window, observed bad rate 4.41%):
+Defaults are 2.96% of the training window (24,564 loans). Neither model uses resampling or class weights; the cut-off comes from costs instead. The decision rests on a mechanism that shows in any window; the test-window table from notebook 03 (`imbalance_experiment.parquet`, observed bad rate 4.41%) illustrates it rather than choosing it:
 
 | Approach | Test AUC | Mean raw PD | Approval rate if the break-even rule is applied to the raw output | Approval rate after recalibration | Net profit after recalibration |
 |---|---|---|---|---|---|
@@ -242,7 +242,7 @@ Bureau enquiry data was not collected for about 45% of January 2019 applications
 | Mar 2019 | 690,313 | 20,874 | 0.579 | 0.577 |
 | Jun 2019 | 484,560 | 14,771 | 0.575 | 0.572 |
 
-Starting later lowered Gini on both windows, and bureau inputs carry about 5% of the challenger's impact, so the full January to October 2019 window was kept. The early-2019 bureau gap stays on the monitoring list.
+The choice rests on the validation window, where each later start lowered Gini; the out-of-time test only confirms it. Bureau inputs carry about 5% of the challenger's impact, so the full January to October 2019 window was kept; the early-2019 bureau gap stays on the monitoring list.
 
 ## 6. Performance
 
@@ -266,7 +266,7 @@ From `model_metrics.parquet`. Calibration ratio = mean PD ÷ observed bad rate (
 - Calibration ratios above 1 on the training window are expected: both models were calibrated on validation, which defaulted more (3.51% vs 2.96%).
 - The higher Gini in the monitoring window should not be read as an improvement. The population changed (fewer new-to-lender clients, and whatever lies behind the April 2020 break: section 10.2) and those outcomes may not be mature.
 
-**Why the gap between the models** (`champion_checks.parquet`, notebook 03 appendix 7). LightGBM on the scorecard's own 16 inputs reaches a test Gini of 0.489; the challenger on all 90 inputs 0.578. Of the 11.6-point gap, 2.7 points come from the algorithm and 8.9 from more inputs. The scorecard refitted with empirical WOE for missing values scores 0.464 (+0.2 points), so the neutral treatment does not handicap it. A refreshed scorecard with more variables would close part of the gap.
+**Why the gap between the models** (`champion_checks.parquet`, notebook 03 appendix 7). LightGBM on the scorecard's own 16 inputs reaches a test Gini of 0.489; the challenger on all 90 inputs 0.578. Of the 11.6-point gap, 2.7 points come from the algorithm and 8.9 from more inputs. The scorecard refitted with empirical WOE for missing values scores 0.464 (+0.2 points), so the neutral treatment does not handicap it. Lifting the 18-variable cap (23 variables under the same IV, correlation and sign rules) raises the scorecard to 0.490, closing 2.8 points (24%) of the gap; most of the challenger's edge needs what a points-based scorecard cannot use well (interactions, non-monotonic effects).
 
 ### 6.2 The challenger's train-versus-validation gap
 
@@ -293,7 +293,7 @@ Head to head ([reports/metrics.json](../reports/metrics.json)). The comparator i
 - **At the champion's bad rate (3.57%)** the challenger approves 95.8% of applications instead of 92.5%: +3.3 pp (2.9 to 3.6 pp), about 2,458 more booked loans a month, and 20.8M CU more net profit over the quarter.
 - **At the champion's approval rate (92.5%)** the challenger's approved book defaults at 3.22% instead of 3.57%, and credit losses are 68.9M CU (22%) lower (20% to 23% lower).
 - **Each at its own cost-based rule,** the challenger approves 1.8 pp fewer applications, cuts credit losses by 64.6M CU and adds 46.3M CU of net profit. Swap-outs (approved by the champion, declined by the challenger: 8,708 loans, 3.9%) defaulted at 14.70% (Wilson interval 13.97% to 15.46%). Swap-ins (4,776 loans, 2.1%) defaulted at 7.08% (Wilson interval 6.38% to 7.84%). The gap is 7.6 pp (6.6 to 8.6 pp).
-- **Against today's policy (approving every booked loan),** the cost-based rule cuts the total cost of wrong decisions by 23% with the challenger (12% with the champion) and credit losses by 35% (19%). With the challenger that is 92.3M CU more net profit over the quarter (86.0M to 98.7M). A 0.5 cut-off approves 99.98% of the book and lands in the same place.
+- **Against today's policy (approving every booked loan),** the cost-based rule cuts the total cost of wrong decisions by 23% with the challenger (12% with the champion) and credit losses by 35% (19%). With the challenger that is 92.3M CU more net profit over the quarter (86.0M to 98.7M): 29.4M, 37.0M and 25.8M CU in January, February and March. The margin assumptions matter more than sampling: across their range the gain is 56.6M to 147.7M CU (`economics_sensitivity.parquet`). A 0.5 cut-off approves 99.98% of the book and lands in the same place.
 
 The full cut-off and swap-set analysis is in [cutoff_and_swap_set.md](cutoff_and_swap_set.md).
 
@@ -343,7 +343,7 @@ From `segment_metrics.parquet`.
 - The challenger ranks better in every segment.
 - Both models rank new-to-lender clients least well: these clients have no internal repayment history, so the models lean on application and bureau data. A segment-specific scorecard or cut-off is the standard next step.
 - Cash loans are the most under-predicted segment (calibration ratio 0.77). At the 25.0% break-even PD this has little effect on decisions, since the challenger's rule approves 99.6% of cash loans (notebook 04, section 3). It would matter for any tighter cash-loan cut-off.
-- Under the rule, approved cash loans default at 5.09% by count and 5.53% by amount (point-of-sale 2.31% and 2.62%, revolving 2.94% and 3.17%; `rule_by_product.parquet`). Cash loans' amount-based bad rate is higher because the cash loans that default are larger than average, and cash loans are the largest product.
+- Under the rule, approved cash loans default at 5.09% by count and 5.53% by amount (point-of-sale 2.31% and 2.62%, revolving 2.94% and 3.17%; `rule_by_product.parquet`). Cash loans' amount-based bad rate is higher than their count-based one because the cash loans that default are larger than average; cash loans are also the largest loans in the book (median 60,000 CU), so they carry more of the loss than their count suggests.
 
 ## 7. Explainability
 
@@ -453,7 +453,7 @@ Sex and age band (from the applicant's birth date) are used only here, to test o
 
 ### 8.3 Proxy check
 
-Excluding an attribute does not stop other inputs from carrying it. A quick LightGBM (200 trees), fitted on 70% of a 200,000-loan sample of the training window and scored on the other 30%, predicts sex from the 90 inputs with an AUC of 0.63 and age 50 or over with an AUC of 0.84, where 0.5 means no information (`proxy_check.parquet`). The age signal is strong. Notebook 02 attributes it mostly to product choice, loan size, income and repayment history, which differ by life stage. This is why outcomes are tested by group.
+Excluding an attribute does not stop other inputs from carrying it. A quick LightGBM (200 trees), fitted on a random 70% of a 200,000-loan sample of the training window and scored on the other 30%, predicts sex from the 90 inputs with an AUC of 0.63 and age 50 or over with an AUC of 0.84, where 0.5 means no information (`proxy_check.parquet`). The age signal is strong. Its largest single carrier is years with current employer, which is missing for 99.7% of retirees (feature log): rerun for this card with the same set-up, the age AUC falls to 0.78 without that input, but stays at 0.83 without product type and the share of past applications for cash and at 0.84 without the seven loan-size, payment and income inputs; the rest of the signal is spread across many inputs. (Notebook 02's summary credits product choice, loan size, income and repayment history.) This is why outcomes are tested by group.
 
 ### 8.4 Interpretation
 
@@ -479,11 +479,11 @@ Excluding an attribute does not stop other inputs from carrying it. A quick Ligh
 |---|---|---|---|---|
 | 1 | Booked loans only; no reject inference | All 1,526,659 loans were approved by the old policy | PD unproven for past rejects; loosening the cut-off cannot be evaluated | Below-cut-off test on applicants just below today's approval line: about 589 loans and about 2.6M CU of expected net loss, a floor (section 3.2) (Credit Policy, Finance) |
 | 2 | The champion is a rebuilt stand-in for the incumbent | The incumbent model is not in the data ([assumptions.md](assumptions.md), P1) | If the incumbent is stronger, the challenger's uplift is overstated | Compare against the production scorecard in the champion/challenger test (Model Risk) |
-| 3 | PD level drifts with the base rate | Calibration ratio 0.90 on the test quarter, 1.34 to 1.66 by month in the monitoring window | PD levels are wrong when the base rate moves; the approval rate under the rule moves with them | Recalibrate on the latest mature vintage before go-live; monthly calibration monitoring (Model Validation) |
+| 3 | PD level drifts with the base rate | Calibrated on Nov to Dec 2019 (bad rate 3.51%). By month, predicted PDs ran 6% to 18% below actual in Jan to Mar 2020 and 34% to 66% above it from April 2020 (both models) | PD levels are wrong when the base rate moves; the approval rate under the rule moves with them | Recalibrate on the latest mature vintage before go-live; monthly calibration monitoring (Model Validation) |
 | 4 | Undisclosed target definition and horizon | Home Credit does not publish them | Cannot be aligned to a 12-month default definition; recent vintages may be immature | Confirm the definition with the data owner; out of scope for provisioning and capital (Risk Analytics) |
 | 5 | Residual look-ahead in long-window repayment summaries | Measured at decision + 14 days; at most about 0.01 IV per field (notebook 02) | Slight optimism in those inputs | Re-extract them as of the decision date and re-test (Data engineering) |
 | 6 | Challenger complexity | Train Gini 0.751 vs validation 0.582; no monotone constraints; one fit, one seed, no tuning | Harder to challenge than a scorecard; an input's effect can change direction across its range | Sensitivity runs and direction checks in validation (section 11.1); consider monotone constraints on inputs with an expected direction (Risk Analytics) |
-| 7 | Reliance on inputs that moved | Employment years (largest input, 6.5% of impact): CSI 0.86 in May 2020 when capture collapsed. Loan term (second largest): CSI up to 0.23. Six inputs had already shifted from train to test (PSI 0.12 to 0.14): the five bureau enquiry inputs (early-2019 collection gap) and the last reject reason's code mix, where new reject codes replace old ones (CSI up to 0.24 from February 2020) | A data-capture or data-definition break shifts PDs without any change in applicant risk | Feature CSI monitoring; data-capture controls on employment start date (Risk Analytics, Data engineering) |
+| 7 | Reliance on inputs that moved | Employment years (largest input, 6.5% of impact): CSI 0.86 in May 2020 when capture collapsed. Loan term (second largest): CSI up to 0.23. Six inputs had already shifted from train to test (PSI 0.12 to 0.14): the five bureau enquiry inputs (early-2019 collection gap; CSI up to 0.37 from December 2019) and the last reject reason's code mix, where new reject codes replace old ones (CSI up to 0.24 from February 2020) | A data-capture or data-definition break shifts PDs without any change in applicant risk | Feature CSI monitoring; data-capture controls on employment start date (Risk Analytics, Data engineering) |
 | 8 | Weak segment: new to lender | Gini 0.421 vs 0.588 for existing clients; 17.6% of test loans | Less separation of good and bad among new clients | Segment-specific cut-off or scorecard (Risk Analytics) |
 | 9 | Cash loans under-predicted | Calibration ratio 0.77 | Little effect at the 25.0% break-even (99.6% approved); matters for any tighter cut-off | Recalibration by product (Risk Analytics) |
 | 10 | Calibration gaps by sex and age; proxies | Ratio 0.73 for men and for 18-24; proxy AUC 0.84 for age 50+ | Fair-lending exposure | Compliance decisions (section 8.5) |
@@ -492,6 +492,7 @@ Excluding an attribute does not stop other inputs from carrying it. A quick Ligh
 | 13 | Economics are assumptions | Margins, LGD and EAD set the break-even PDs. Margins at the low end of their range give a 75.7% approval rate under the rule; at the high end, 95.7% | Money figures move with them; the ranking of the two models does not | Finance sign-off; sensitivity in notebook 04 (Finance) |
 | 14 | Price information still present | Interest-rate and campaign fields excluded, but amount, term and payment reflect pricing choices ([assumptions.md](assumptions.md), P4) | The model partly learns from the old pricing | Re-check if pricing starts to follow this model's PD (Credit Policy) |
 | 15 | Explanations are associations | SHAP and points describe the model, not the world | Reasons must not be presented as causes | Reason wording reviewed by Compliance |
+| 16 | Monitoring back-test is not blind | Two employment fields were dropped partly because their collection stopped in June 2020, inside the monitoring window; the six inputs already shifted between training and test were put on the CSI list with that knowledge (section 10.2) | Section 10.2 is more favourable than a prospective run: it cannot show what the two fields' collapse would have done to a model that used them, and alerts on the six shifted inputs were expected | Read section 10.2 as illustrative; judge the plan on its first live months (Risk Analytics) |
 
 ## 10. Monitoring plan
 
@@ -511,9 +512,9 @@ Excluding an attribute does not stop other inputs from carrying it. A quick Ligh
 
 Sources: [notebooks/04_threshold_and_strategy.ipynb](../notebooks/04_threshold_and_strategy.ipynb) section 10 and [02_metric_definitions.md](02_metric_definitions.md).
 
-### 10.2 Back-test on the April to October 2020 (COVID) period
+### 10.2 Back-test on April to October 2020
 
-The plan was run over the monitoring window as if the challenger had gone live in April 2020 (`monitoring_monthly.parquet`, `csi_flags.parquet`). The test months are shown for comparison.
+The plan was run over the monitoring window as if the challenger had gone live in April 2020 (`monitoring_monthly.parquet`, `csi_flags.parquet`); the test months are shown for comparison. The back-test is not blind. Two employment fields (`empl_industry_691L`, `empl_employedtotal_800L`) were dropped in notebook 02 partly because their collection stopped in June 2020, inside this window, and the inputs that had already shifted between training and test (notebook 02 PSI above 0.10: the last reject reason and five bureau-enquiry inputs) were put on the CSI list with that knowledge (section 9, row 16).
 
 | Month | Loans | Bad rate | Mean PD | Calibration ratio | Gini | Score PSI | Approval rate under the rule |
 |---|---|---|---|---|---|---|---|
@@ -530,10 +531,10 @@ The plan was run over the monitoring window as if the challenger had gone live i
 
 Findings:
 1. **Score PSI did not flag the shift.** The challenger's PSI stayed below 0.10 in every month (highest 0.083, May 2020). The champion's PSI crossed 0.10 in six of the seven months (0.108 to 0.146 from May 2020, highest in August), in step with the employment field's fill-rate collapse (finding 5).
-2. **The outcome moved a lot.** The bad rate halved, and predicted PDs ran 34% to 66% above actual (calibration ratio 1.34 to 1.66). That is outside the 0.8 to 1.25 band in all seven months, but the alert can only be computed once those vintages' outcomes mature, months later.
+2. **The outcome moved a lot.** The bad rate halved. Predicted PDs, which had run 6% to 18% below actual in January to March 2020, ran 34% to 66% above it from April 2020 (both models; challenger calibration ratio 1.34 to 1.66). That is outside the 0.8 to 1.25 band in all seven months, but the alert can only be computed once those vintages' outcomes mature, months later.
 3. **Ranking held.** Monthly Gini stayed between 0.533 and 0.649 and never fell more than 5 points below validation. The lowest month (April 2020, 0.533 on 8,289 loans) is just above the alert line of 0.532.
-4. **The approval rate under the rule barely moved:** 91.3% to 92.7%, against 90.2% to 91.0% in the test months. With PDs running high, the rule declines more applicants than the economics justify; the size of that effect was not measured.
-5. **Feature CSI caught a data-capture break at once.** Years with current employer reached a CSI of 0.27 in April and 0.86 in May 2020, when the field's fill rate collapsed, and stayed above 0.10 in all seven months. A second, data-definition drift shows in the last reject reason's code mix: new reject codes replace old ones, and its CSI stayed above 0.10 for nine months from February 2020 (highest 0.24, July). The bureau enquiry inputs, already shifted from train to test by the early-2019 collection gap, were above 0.10 in every month from February 2020, two of them also in December 2019 (highest 0.37). Smaller flags: length of application history (July to October, highest 0.12), monthly payment (July and August, 0.12), payment-to-income (August, 0.13) and product (April, 0.11). Loan term crossed 0.10 in seven months from November 2019 (highest 0.23), as it had in two training months (March and October 2019): the shift sits within products, mainly in point-of-sale loan terms, not in the product mix, so it needs a seasonal reference to avoid false alarms. Alerts count only months after the training window (`csi_flags.parquet`).
+4. **The approval rate under the rule barely moved:** 91.3% to 92.7%, against 90.2% to 91.0% in the test months. If these outcomes hold once the vintages mature, PDs ran high and the rule declined more applicants than the economics justify; the size of that effect was not measured.
+5. **Feature CSI caught a data-capture break at once.** Years with current employer reached a CSI of 0.27 in April and 0.86 in May 2020, when the field's fill rate collapsed, and stayed above 0.10 in all seven months. A second, data-definition drift shows in the last reject reason's code mix: new reject codes replace old ones, and its CSI stayed above 0.10 for nine months from February 2020 (highest 0.24, July). The bureau enquiry inputs, already shifted from train to test by the early-2019 collection gap, were above 0.10 in every month from February 2020, two of them also in December 2019 (highest 0.37). Smaller flags: length of application history (July to October, highest 0.12), monthly payment (July and August, 0.12), payment-to-income (August, 0.13) and product (April, 0.11). Loan term crossed 0.10 in seven months from November 2019 (highest 0.23), as it had in two training months (March and October 2019): the shift sits within products, mainly in point-of-sale loan terms, not in the product mix, so it may need a seasonal reference to avoid false alarms. Alerts count only months after the training window: 12 of the 22 inputs were flagged at least once (`csi_flags.parquet`).
 6. **Lesson.** Input stability alone would have missed this change. The plan pairs PSI and CSI with calibration on mature vintages and an early-delinquency measure (30+ days past due at month 3) to shorten the lag. The bad rate fell in one step in April 2020 and then stayed flat. Its cause is not known: it may reflect COVID-era measures, the lender's own tightening or loans too recent to have defaulted (the outcome horizon is not disclosed); the data cannot separate these, so this back-test is illustrative. It is not evidence that the model is too conservative, and any cut-off change should wait for mature vintages.
 
 ## 11. Validation and approval checklist
@@ -544,16 +545,16 @@ Findings:
 |---|---|---|---|
 | 1 | End-to-end rebuild | `make all` from the raw files; compare [reports/metrics.json](../reports/metrics.json) | Same numbers (fixed seed 42) |
 | 2 | Reconciliation | `sql/dq/dq_01`, `dq_02`; notebook 02 section 3.1 | 1,526,659 loans; 47,994 defaults; 0 key violations; window counts as in section 3.4 |
-| 3 | Point-in-time build | `sql/dq/dq_04`, `dq_05`; review the rules in sql/02 and sql/03; trace a sample of loans back to the raw tables | Match rates of 90.1% at the decision date, 92.5% at +7 days, 96.7% at +14 days and 98.4% at +21 days; 144,679 post-decision previous-application rows removed |
+| 3 | Point-in-time build | `sql/dq/dq_04`, `dq_05`; review the rules in sql/02 and sql/03; trace a sample of loans back to the raw tables | Match rates of 90.1% at the decision date, 92.5% at +7 days, 96.7% at +14 days and 98.4% at +21 days; 144,679 previous-application rows created on or after the decision date removed |
 | 4 | Leakage ablation | Notebook 02 section 3.4 | Test Gini 0.588 (as provided), 0.585 (decision-time inputs), 0.578 (point-in-time); profit gap 0.3% |
 | 5 | Feature decisions | [feature_inclusion_log.csv](feature_inclusion_log.csv) against the SQL | 294 columns: 41 kept, 27 rebuilt, 223 dropped, 3 fairness-only; catalog check passes |
-| 6 | Scorecard build | Refit from `fit_scorecard`; compare the selection log | 16 variables; all coefficients negative |
+| 6 | Scorecard build | Refit from `fit_scorecard`; compare the selection log; refit with the cap lifted (notebook 03 appendix 7) | 16 variables; all coefficients negative. Cap lifted: 23 variables, test Gini 0.490 |
 | 7 | Challenger build and sensitivity | Refit with seed 42; then other seeds and a more regularised set-up (section 6.2) | 963 rounds; validation Gini 0.582. The sensitivity runs have not been done |
 | 8 | Rank-ordering and calibration | Recompute from `data/processed/predictions.parquet` | Section 6.1; test calibration slope 0.99 (challenger) and 0.95 (champion) |
 | 9 | Reason codes | Challenger: base value plus SHAP equals raw log-odds. Champion: points by bin add up to the score | Largest difference 3 × 10⁻¹⁴ (SHAP) and 2 × 10⁻¹³ points (champion); `make test` runs the regression test from section 7.4 |
 | 10 | Direction of effects | Compare each input's SHAP pattern with the expected direction in src/features.py | Not yet done by the developer |
 | 11 | Fairness and proxies | Notebook 04 section 8; `proxy_strength` in src/fairness.py | Sections 8.1 to 8.3 |
-| 12 | Economics | config.yaml, [assumptions.md](assumptions.md), notebook 04 section 12 | Break-even PDs 25.0%, 14.3%, 7.7% |
+| 12 | Economics | config.yaml, [assumptions.md](assumptions.md), notebook 04 sections 2 and 12 | Break-even PDs 25.0%, 14.3%, 7.7% |
 | 13 | Implementation parity | Score a sample through the production feature build and the saved artefacts; check how unseen categorical levels are handled (they become missing) | Identical PDs and reasons |
 | 14 | Monitoring | Recompute `monitoring_monthly` and `csi_monthly` | Section 10.2 |
 
@@ -583,7 +584,7 @@ Findings:
 1. [notebooks/03_modeling.ipynb](../notebooks/03_modeling.ipynb), TL;DR, called the champion an "18-variable scorecard"; 18 is the selection cap. It now says 16-variable.
 2. The same notebook's class-imbalance appendix mentioned 33,000 defaults in the training window (33,048 is training plus validation). It now says 24,564.
 3. [notebooks/01_data_audit.ipynb](../notebooks/01_data_audit.ipynb), decision table, said bureau window differences end 30 days before the decision. It now says 16 days, as implemented in [sql/02](../sql/02_stg_static.sql).
-4. A monitoring chart title in notebook 04 said score PSI stayed below the investigate line through the COVID months, which holds for the challenger only. It now reads "The challenger's score PSI stayed below 0.10; the scorecard's crossed it from May 2020" (0.108 to 0.146).
+4. A monitoring chart title in notebook 04 said score PSI stayed below the investigate line from April to October 2020, which holds for the challenger only. It now reads "The challenger's score PSI stayed below 0.10; the scorecard's crossed it from May 2020" (0.108 to 0.146).
 5. [02_metric_definitions.md](02_metric_definitions.md) defines scorecard points on the raw scale (600 points = raw odds of 50:1) and now also gives the calibrated PD of about 2.4% that section 5.1 uses, so the two documents agree.
 
 ## 12. Change log
@@ -595,7 +596,7 @@ Findings:
 Development decisions taken before version 1.0 (evidence in the notebooks, the SQL headers and the feature log):
 - History features rebuilt point-in-time after the 14-day snapshot offset was found (notebooks 01 and 02).
 - Interest-rate and marketing-campaign fields excluded as outputs of the lender's own pricing and targeting.
-- Columns collected only from mid-2019 dropped, because their missing values encode the calendar period.
+- Columns rolled out part-way through 2019 dropped, because their missing values encode the calendar period.
 - No resampling or class weights (section 5.4).
 - The full January to October 2019 training window kept (section 5.5).
 - Employment status tested as an input and kept out (section 8).
