@@ -1,0 +1,20 @@
+# Raw and derived data never go into git (Kaggle competition data, row-level outputs)
+data/
+artifacts/
+*.parquet
+*.duckdb
+*.duckdb.wal
+*.csv.gz
+*.pkl
+*.joblib
+*.txt.model
+
+# Python / tooling
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+.DS_Store
+.env
+.streamlit/secrets.toml

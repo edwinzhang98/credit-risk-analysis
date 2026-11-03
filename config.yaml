@@ -1,0 +1,38 @@
+# Project configuration: the single place to change paths, time windows and business assumptions.
+#
+# Data location: by default the raw Kaggle parquet files are read in place from the shared datasets folder.
+# To point somewhere else, either edit `data_dir` below or set the environment variable HC_DATA_DIR
+# (it overrides this file), e.g.  HC_DATA_DIR=/data/home-credit-2024/parquet_files/train make all
+data_dir: ~/projects/data-projects/datasets/p2-comp-home-credit-2024/parquet_files/train
+
+# Local outputs (git-ignored). Relative paths are resolved from the repository root.
+warehouse: data/warehouse.duckdb
+processed_dir: data/processed
+artifacts_dir: artifacts
+reports_dir: reports
+
+seed: 42
+
+duckdb:
+  threads: 8
+  memory_limit: 8GB
+
+# Time-based split on decision month (YYYYMM, inclusive). No random splits anywhere.
+split:
+  train:   [201901, 201910]   # model fitting
+  valid:   [201911, 201912]   # early stopping, calibration, cut-off selection
+  test:    [202001, 202003]   # out-of-time test: every headline number comes from here
+  monitor: [202004, 202010]   # post-"deployment" window used to demonstrate monitoring (COVID period)
+
+# Unit economics per currency unit of credit amount (see docs/assumptions.md for sources and ranges).
+economics:
+  margin_good: 0.10      # net lifetime profit on a loan that is repaid  -> cost of declining a good applicant (FP)
+  ead_share: 0.80        # share of the credit amount still outstanding when a default happens
+  lgd: 0.75              # share of that exposure never recovered         -> cost of approving a bad applicant (FN) = 0.80 x 0.75 = 0.60
+
+# Manual review assumptions for the 3-tier policy (all adjustable in the dashboard).
+review:
+  cost_per_case: 300           # currency units per reviewed application (about 1% of the median loan)
+  bad_catch_rate: 0.40         # share of bad applicants that a reviewer declines
+  good_decline_rate: 0.10      # share of good applicants that a reviewer declines anyway
+  capacity_share: 0.05         # review team capacity as a share of monthly applications
