@@ -36,7 +36,7 @@ st.markdown(f"""
    **{m['data']['test_bad_rate']:.2%}** to **{lc['rule']['bad_rate_approved']:.2%}**.
 2. **"More approvals at the same bad rate" needs a better model, plus one test.** Against a rebuilt scorecard applying the same rule, the challenger
    approves **{100 * mv['same_bad_rate']['extra_approvals_pp']:+.1f} pp** more applicants at the scorecard's bad rate, matched after the fact on booked test loans.
-   A cut-off fixed in advance must confirm this gain in the trial. Approving applicants the
+   It needs its own cut-off fixed in advance and its own test. Approving applicants the
    lender rejected in the past cannot be evaluated from this data (their outcomes were never observed): a small below-cut-off test is the way to find out.
 3. **Route the grey zone to people, within capacity.** About **{tt['totals']['review_rate']:.1%}** of applications (larger loans near the break-even)
    go to manual review, the team's full capacity of 5% of each month's applications: {tt['uncapped_review_per_month']:,.0f} a month would be worth reviewing, so the most valuable are kept within each month's cap.

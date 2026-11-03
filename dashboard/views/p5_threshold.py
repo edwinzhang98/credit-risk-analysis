@@ -63,12 +63,13 @@ st.plotly_chart(fig, use_container_width=True)
 rev = base_review()
 cap_n = rev.capacity_share * len(T)
 want = assign_tiers(p, g, l, rev, capacity=None)
-keep = assign_tiers(p, g, l, rev, capacity=cap_n)
+keep = assign_tiers(p, g, l, rev, capacity_share=rev.capacity_share, groups=T.decision_month.to_numpy())  # cap applied month by month
 months = T.decision_month.nunique() if "decision_month" in T else 3
 r1, r2, r3 = st.columns(3)
 r1.metric("Worth a manual review", f"{(want == 1).sum() / months:,.0f} / month", help="Applications where a review beats both approving and declining, "
           "under these cost assumptions and the review assumptions in config.yaml (300 CU a case, reviewer declines 40% of bad and 10% of good applicants).")
-r2.metric("Reviewed within capacity", f"{(keep == 1).sum() / months:,.0f} / month", help=f"Capacity: {cap_n / months:,.0f} reviews a month (5% of applications); the most valuable are kept.")
+r2.metric("Reviewed within capacity", f"{(keep == 1).sum() / months:,.0f} / month", help=f"Capacity: {rev.capacity_share:.0%} of each month's applications ({cap_n / months:,.0f} reviews a month on average); "
+          "the most valuable are kept within each month's cap.")
 r3.metric("Auto-decided because of the cap", f"{round((want == 1).sum() / months) - round((keep == 1).sum() / months):,.0f} / month", help="Sent to approve or decline by the rule instead. Volumes are booked-loan volumes.")
 
 how_to_read("""

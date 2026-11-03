@@ -115,5 +115,5 @@ small, controlled below-cut-off test.
 
 **Question 2, a model change.** Both models score the same booked loans, so swap-ins and swap-outs are both observed. "Same approval rate"
 asks: approving the same number of people, does the new model pick safer ones? "Same bad rate" asks: holding risk constant, how many more people
-can be approved? The same-bad-rate comparison is matched after the fact on booked test loans; a cut-off fixed in advance must confirm the gain in the trial.
+can be approved? The same-bad-rate comparison is matched after the fact on booked test loans; it needs its own cut-off fixed in advance and its own test (the trial compares the two cost-based rules).
 """)
