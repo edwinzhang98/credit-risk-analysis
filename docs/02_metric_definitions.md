@@ -34,16 +34,28 @@ All amounts are per loan and scale with the loan amount *A*. Assumption values a
 
 | Metric | Formula |
 |---|---|
-| **Margin of a good loan** (m) | net lifetime profit as a share of A after funding and operating cost. Base case m = 10%. |
-| **Loss of a bad loan** (L) | EAD share × LGD. Base case 0.80 × 0.75 = 60% of A. |
+| **Margin of a good loan** (m) | net lifetime profit as a share of A after funding and operating cost, **by product**: cash loans 20%, revolving 10%, point-of-sale 5%. |
+| **Loss of a bad loan** (L) | EAD share × LGD. Base case 0.80 × 0.75 = 60% of A (all products). |
 | **Cost of a false negative** (approve a bad) | L × A (credit loss) |
 | **Cost of a false positive** (decline a good) | m × A (forgone margin) |
 | **Credit loss** | Σ over approved bads of L × A |
 | **Forgone margin** | Σ over declined goods of m × A |
 | **Total decision cost** | credit loss + forgone margin (+ review cost in the three-tier policy). The README "loss curve" plots this. |
 | **Net profit** | Σ over approved goods of m × A − credit loss − review cost. Equals (margin of all goods) − total decision cost, so minimising one maximises the other. |
-| **Break-even PD** | p* = m ÷ (m + L). Approving a loan with calibrated PD p has expected value A·[(1−p)·m − p·L], which is positive exactly when p < p*. Base case p* = 0.10 ÷ 0.70 = **14.3%**. |
+| **Break-even PD** | p* = m ÷ (m + L). Approving a loan with calibrated PD p has expected value A·[(1−p)·m − p·L], which is positive exactly when p < p*. Base case: cash **25.0%**, revolving **14.3%**, point-of-sale **7.7%**. |
+| **Cost-based policy** | approve when expected value > 0, i.e. PD below the loan's product break-even. Compared against single cut-offs (same PD cut-off for every product) and the naive 0.5 cut-off. |
 | **Review cost** | reviews × cost per review (base case 300 CU). |
+| **Expected value of review** | A·[(1−p)·(1−g)·m − p·(1−c)·L] − C, where c = share of bads the reviewer declines, g = share of goods the reviewer declines, C = cost per review. A loan goes to review only when this beats both approving and declining, and only up to the team's capacity (highest value first). |
+
+## Headroom (answering "can approvals go up without the bad rate going up?")
+
+Only approved loans have outcomes, so the bad rate of applicants we would *newly* approve (r) cannot be measured. The policy question is framed as an exchange: decline a tail of *d* current loans whose bad rate is *t*, from a book with bad rate *B*, and use the room to approve *s* new applicants with bad rate *r*.
+
+| Metric | Formula |
+|---|---|
+| **New approvals per declined loan at a constant bad rate** | s ÷ d = (t − B) ÷ (r − B), for r > B |
+| **Net change in approvals** | s − d = d·(t − r) ÷ (r − B): positive only if the newly approved applicants are less risky than the declined tail (r < t) |
+| **What decides it** | r, which only a controlled below-cut-off test can measure (see the test design in `docs/cutoff_and_swap_set.md`) |
 
 ## Model metrics (secondary; used in the model card)
 

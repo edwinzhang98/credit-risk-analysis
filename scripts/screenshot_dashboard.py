@@ -1,0 +1,79 @@
+"""Capture every dashboard page to reports/figures/dashboard_<n>_<slug>.png for the README.
+
+Starts `streamlit run dashboard/app.py` on a free port, waits for it, visits each page in headless Chromium,
+and saves a full-page screenshot. Also records how long the first page takes to render.
+Requires once:  .venv/bin/python -m playwright install chromium
+"""
+from __future__ import annotations
+
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "reports" / "figures"
+PAGES = [
+    ("overview", "Overview"),
+    ("data_quality", "Data & Quality Audit"),
+    ("portfolio", "Portfolio Snapshot"),
+    ("model", "Model & Explainability"),
+    ("threshold", "Cost-based Threshold Simulator"),
+    ("swap_set", "Swap-set Analysis"),
+    ("strategy", "Strategy & Monitoring Plan"),
+]
+
+
+def free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def wait_for(url: str, timeout: float = 60) -> None:
+    import urllib.request
+
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        try:
+            urllib.request.urlopen(url, timeout=2)
+            return
+        except Exception:  # noqa: BLE001
+            time.sleep(0.5)
+    raise TimeoutError(url)
+
+
+def main() -> None:
+    from playwright.sync_api import sync_playwright
+
+    OUT.mkdir(parents=True, exist_ok=True)
+    port = free_port()
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "streamlit", "run", str(ROOT / "dashboard" / "app.py"), "--server.port", str(port), "--server.headless", "true"],
+        cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    base = f"http://127.0.0.1:{port}"
+    try:
+        wait_for(base)
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 1440, "height": 1000}, device_scale_factor=1.5)
+            for i, (slug, title) in enumerate(PAGES, start=1):
+                t0 = time.time()
+                page.goto(f"{base}/{slug}" if i > 1 else base, wait_until="networkidle")
+                page.wait_for_selector("h1", timeout=60_000)
+                page.wait_for_function("() => !document.querySelector('[data-testid=\"stStatusWidget\"]')", timeout=60_000)
+                page.wait_for_timeout(2500)  # let Plotly finish drawing
+                elapsed = time.time() - t0
+                path = OUT / f"dashboard_{i}_{slug}.png"
+                page.screenshot(path=str(path), full_page=True)
+                print(f"{title:35s} rendered in {elapsed:5.1f}s -> {path.relative_to(ROOT)}")
+            browser.close()
+    finally:
+        proc.terminate()
+        proc.wait(timeout=10)
+
+
+if __name__ == "__main__":
+    main()

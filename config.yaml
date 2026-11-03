@@ -24,11 +24,18 @@ split:
   test:    [202001, 202003]   # out-of-time test: every headline number comes from here
   monitor: [202004, 202010]   # post-"deployment" window used to demonstrate monitoring (COVID period)
 
-# Unit economics per currency unit of credit amount (see docs/assumptions.md for sources and ranges).
+# Unit economics per currency unit of loan amount (see docs/assumptions.md for sources and ranges).
+#   cost of approving a bad applicant (FN)  = ead_share x lgd = 0.80 x 0.75 = 60% of the loan amount
+#   cost of declining a good applicant (FP) = the product's net lifetime margin
+#   break-even PD per product = margin / (margin + 0.60)  ->  cash 25.0%, revolving 14.3%, point-of-sale 7.7%
 economics:
-  margin_good: 0.10      # net lifetime profit on a loan that is repaid  -> cost of declining a good applicant (FP)
-  ead_share: 0.80        # share of the credit amount still outstanding when a default happens
-  lgd: 0.75              # share of that exposure never recovered         -> cost of approving a bad applicant (FN) = 0.80 x 0.75 = 0.60
+  ead_share: 0.80        # share of the loan amount still outstanding when a default happens
+  lgd: 0.75              # share of that exposure never recovered
+  margin_by_product:     # net lifetime profit of a loan that is repaid, share of the loan amount
+    CAL: 0.20            # cash loans: median contractual lifetime interest ~36% of principal, less prepayment, funding, opex
+    COL: 0.05            # point-of-sale loans: ~12% median lifetime interest, 42% are 0%-interest promotions
+    REL: 0.10            # revolving cards: no rate in the data; amount is the credit limit
+  margin_default: 0.10   # any loan without a product type (1 case)
 
 # Manual review assumptions for the 3-tier policy (all adjustable in the dashboard).
 review:

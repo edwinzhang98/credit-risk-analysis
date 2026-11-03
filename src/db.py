@@ -26,6 +26,7 @@ def connect(cfg: dict | None = None, read_only: bool = False) -> duckdb.DuckDBPy
     con.execute(f"SET threads = {int(cfg['duckdb']['threads'])}")
     con.execute(f"SET memory_limit = {_quote(cfg['duckdb']['memory_limit'])}")
     con.execute("SET preserve_insertion_order = false")
+    con.execute("SET enable_progress_bar = false")
     con.execute(f"SET VARIABLE data_dir = {_quote(cfg['data_dir'])}")
     for split, (start, end) in cfg["split"].items():
         con.execute(f"SET VARIABLE {split}_start = {int(start)}")
