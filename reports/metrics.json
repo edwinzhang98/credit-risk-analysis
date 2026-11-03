@@ -18,6 +18,12 @@
     "gini_test_pit": 0.5782241766526781,
     "gini_test_naive_offline": 0.5876209633151144,
     "gini_test_naive_decision_time": 0.5851849890986391,
+    "share_post_decision_activity": 0.10629555283118003,
+    "gini_post_activity_pit": 0.5319556150587736,
+    "gini_post_activity_naive": 0.5447726917855251,
+    "gini_no_activity_pit": 0.5759593855870131,
+    "gini_no_activity_naive": 0.5827701767915354,
+    "naive_decision_time_profit_gap": 0.0032191897606659303,
     "proxy_auc_sex": 0.6309071360043327,
     "proxy_auc_age50": 0.836616662341206,
     "n_unstable_features": 5
@@ -50,7 +56,16 @@
     "gini_test_new_challenger": 0.4213249060620543,
     "gini_test_existing_challenger": 0.587697383083222,
     "top_driver": "Years with current employer",
-    "top_driver_group": "Affordability"
+    "top_driver_group": "Affordability",
+    "track_record_share": 0.516483283047362,
+    "group_shares": {
+      "Repayment history": 0.2603568898603706,
+      "Previous applications": 0.2561263931869914,
+      "Loan terms": 0.19944631185370326,
+      "Affordability": 0.15075800803692652,
+      "Contact details": 0.08169518671188139,
+      "Credit bureau": 0.051617210350126765
+    }
   },
   "economics": {
     "lgd": 0.75,
@@ -379,13 +394,13 @@
       "rule_net_profit": 991806148.5149848
     },
     {
-      "view": "Hindsight: level shifted to the test quarter's base rate",
-      "mean_pd": 0.04906855980405834,
+      "view": "Hindsight: intercept refitted on the test quarter (level only)",
+      "mean_pd": 0.04413937426183611,
       "observed_bad_rate": 0.044139374261836437,
-      "calibration_ratio": 1.1116732084370247,
-      "rule_approval_rate": 0.8763567614659535,
-      "rule_bad_rate_of_approved": 0.029726156558099494,
-      "rule_net_profit": 994373191.4324448
+      "calibration_ratio": 0.9999999999999926,
+      "rule_approval_rate": 0.8929455139863751,
+      "rule_bad_rate_of_approved": 0.030753060218666077,
+      "rule_net_profit": 993230854.0325701
     },
     {
       "view": "Stress: PD odds +25% before applying the rule",
@@ -397,6 +412,8 @@
       "rule_net_profit": 994035412.2457951
     }
   ],
+  "calibration_slope_test": 0.9923533364403162,
+  "calibration_shift_logodds": 0.11903465337643584,
   "monitoring": {
     "psi_max_monitor_challenger": 0.0825508589616947,
     "psi_max_test_challenger": 0.007555378595134971,

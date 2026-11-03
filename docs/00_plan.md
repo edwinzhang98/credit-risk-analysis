@@ -44,6 +44,17 @@ Tables used, added one at a time (stop adding when the signal is enough):
 
 **Added (what the competition notebooks skip):** point-in-time leakage audit with quantified impact; a cost matrix that sets the cut-off (instead of 0.5 or leaderboard AUC); a champion-vs-challenger swap set; a 3-tier decision policy with review cost and capacity; plain-English decline reasons; fair-lending checks; a monitoring plan tested on a real drift period; business-facing docs.
 
+## Changes made after the design review (same day)
+
+An independent review of this plan by a senior credit-risk reviewer led to five changes, all implemented:
+1. **"Is there room?" is answered in two parts.** Tightening is measured directly on the booked book; loosening is shown as an exchange rate (new approvals per declined loan at an unchanged bad rate) that depends on the unknown bad rate of past rejects, plus a sized below-cut-off test.
+2. **Margins differ by product** (cash 20%, revolving 10%, point-of-sale 5%), so one rule ("approve when expected profit is positive") gives three PD cut-offs.
+3. **Manual review is amount-aware and capacity-bound:** small point-of-sale loans never go to review; when demand exceeds capacity the most valuable reviews are kept.
+4. **Fairness is tested with and without employment status**, and results are split by new-to-lender vs existing clients.
+5. **A score/odds table, calibration-drift checks and test sizing** were added to the policy pack.
+
+A second, adversarial pass over every raw column found more leakage routes than the first audit (mid-2019 roll-out columns, "null if after the decision" leaking through the missing bin, days-past-due counted to decision + 14 days, bureau windows); all are handled in `sql/02` and `sql/03` and logged in `docs/feature_inclusion_log.csv`.
+
 ## Guardrails
 
 Fixed seeds, one-command pipeline (`make all`), data path in `config.yaml`, no raw or row-level data in git. Every assumption goes into `docs/assumptions.md` with its source. Correlation is not written up as causation; small segments get intervals.

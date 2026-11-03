@@ -26,7 +26,7 @@ kpi_row([
 ])
 
 curves = {CP: load("loss_curve_champion"), CH: load("loss_curve_challenger")}
-st.plotly_chart(charts.loss_curve(curves, rule_points={CH: lc["rule"]["total_cost"]}), use_container_width=True)
+st.plotly_chart(charts.loss_curve(curves, rule_points={CH: lc["rule"]["total_cost"]}, headline=CH), use_container_width=True)
 
 st.subheader("The answer in three points")
 st.markdown(f"""

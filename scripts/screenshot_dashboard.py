@@ -45,9 +45,16 @@ def wait_for(url: str, timeout: float = 60) -> None:
 
 
 def main() -> None:
+    import argparse
+
     from playwright.sync_api import sync_playwright
 
-    OUT.mkdir(parents=True, exist_ok=True)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--height", type=int, default=1100, help="viewport height in px (Streamlit scrolls inside the page, so this is the visible part)")
+    ap.add_argument("--out", default=str(OUT), help="output folder")
+    args = ap.parse_args()
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
     port = free_port()
     proc = subprocess.Popen(
         [sys.executable, "-m", "streamlit", "run", str(ROOT / "dashboard" / "app.py"), "--server.port", str(port), "--server.headless", "true"],
@@ -58,7 +65,7 @@ def main() -> None:
         wait_for(base)
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            page = browser.new_page(viewport={"width": 1440, "height": 1000}, device_scale_factor=1.5)
+            page = browser.new_page(viewport={"width": 1440, "height": args.height}, device_scale_factor=1.5)
             for i, (slug, title) in enumerate(PAGES, start=1):
                 t0 = time.time()
                 page.goto(f"{base}/{slug}" if i > 1 else base, wait_until="networkidle")
@@ -66,9 +73,9 @@ def main() -> None:
                 page.wait_for_function("() => !document.querySelector('[data-testid=\"stStatusWidget\"]')", timeout=60_000)
                 page.wait_for_timeout(2500)  # let Plotly finish drawing
                 elapsed = time.time() - t0
-                path = OUT / f"dashboard_{i}_{slug}.png"
+                path = out / f"dashboard_{i}_{slug}.png"
                 page.screenshot(path=str(path), full_page=True)
-                print(f"{title:35s} rendered in {elapsed:5.1f}s -> {path.relative_to(ROOT)}")
+                print(f"{title:35s} rendered in {elapsed:5.1f}s -> {path}")
             browser.close()
     finally:
         proc.terminate()

@@ -12,7 +12,8 @@ page_header("Portfolio snapshot", "Where is the risk in the booked portfolio, an
 cube = load("portfolio_cube")
 WINDOWS = {"Train (Jan-Oct 2019)": "train", "Validation (Nov-Dec 2019)": "valid", "Out-of-time test (Jan-Mar 2020)": "test", "Monitoring (Apr-Oct 2020)": "monitor"}
 c1, c2, c3 = st.columns([1.4, 1.2, 1.4])
-segment = c1.selectbox("Break the bad rate down by", list(cube.segment.unique()), index=1)
+seg_list = list(cube.segment.unique())
+segment = c1.selectbox("Break the bad rate down by", seg_list, index=seg_list.index("Worst lateness, 24 months") if "Worst lateness, 24 months" in seg_list else 0)
 windows = c2.multiselect("Period", list(WINDOWS), default=list(WINDOWS)[:3])
 products = c3.multiselect("Product", list(PRODUCT_NAMES), default=list(PRODUCT_NAMES), format_func=lambda k: PRODUCT_NAMES[k])
 

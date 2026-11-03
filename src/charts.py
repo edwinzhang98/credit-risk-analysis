@@ -186,7 +186,7 @@ def snapshot_offset_chart(off: pd.DataFrame) -> go.Figure:
 # Cut-off and strategy
 # ---------------------------------------------------------------------------------------------------------------------
 def loss_curve(curves: dict, rule_points: dict | None = None, default_cut: float = 0.5, height: int = 470, title: str | None = None,
-               subtitle: str | None = None) -> go.Figure:
+               subtitle: str | None = None, headline: str | None = None) -> go.Figure:
     """Total decision cost (credit losses + forgone margin) vs a single PD cut-off, one line per model.
 
     curves: {model_name: DataFrame from strategy.curve_by_threshold}; rule_points: {model_name: total cost of the product-level cost rule}.
@@ -213,20 +213,24 @@ def loss_curve(curves: dict, rule_points: dict | None = None, default_cut: float
         name0 = list(rule_points)[0]
         fig.add_annotation(x=0.49, xref="x", y=rule_points[name0] / 1e6, text="cost-based rule with product break-evens", showarrow=False,
                            yshift=-11, xanchor="right", font=dict(size=11, color=INK_2))
-    first = list(curves)[0]
-    c0 = curves[first]
+    head = headline if headline in curves else list(curves)[-1]
+    c0 = curves[head]
     d0 = c0.iloc[(c0.threshold - default_cut).abs().argmin()]
-    b0 = best[first]
+    b0 = best[head]
     fig.add_annotation(x=d0.threshold, y=d0.total_cost / 1e6, text="0.5 cut-off<br>(approves almost all)", showarrow=True, arrowhead=0, ax=-60, ay=-40,
                        font=dict(size=11, color=INK_2), arrowcolor=AXIS)
-    fig.add_annotation(x=b0.threshold, y=b0.total_cost / 1e6, text=f"lowest cost<br>at PD {b0.threshold:.0%}", showarrow=True, arrowhead=0, ax=40, ay=50,
+    fig.add_annotation(x=b0.threshold, y=b0.total_cost / 1e6, text=f"cheapest single<br>cut-off: PD {b0.threshold:.1%}", showarrow=True, arrowhead=0, ax=45, ay=55,
                        font=dict(size=11, color=INK_2), arrowcolor=AXIS)
-    saving = 1 - b0.total_cost / d0.total_cost
-    base_layout(fig, title or f"A cost-based cut-off cuts the cost of wrong decisions by {saving:.0%} versus the default 0.5",
+    if rule_points and head in rule_points:
+        saving, what = 1 - rule_points[head] / d0.total_cost, "The cost-based rule"
+    else:
+        saving, what = 1 - b0.total_cost / d0.total_cost, "The cheapest single cut-off"
+    y_top = 1.7 * max(float(c.iloc[(c.threshold - default_cut).abs().argmin()].total_cost) for c in curves.values()) / 1e6
+    base_layout(fig, title or f"{what} cuts the cost of wrong decisions by {saving:.0%} versus the default 0.5 cut-off",
                 subtitle or "Credit losses on approved bads + margin forgone on declined goods (million CU) by PD cut-off, out-of-time test Jan to Mar 2020",
                 height=height)
     fig.update_xaxes(title="PD cut-off (approve if predicted PD is below)", tickformat=".0%", range=[0, 0.505])
-    fig.update_yaxes(title="Total cost of decisions (M CU)", rangemode="tozero")
+    fig.update_yaxes(title="Total cost of decisions (M CU)", range=[0, y_top])
     return fig
 
 
@@ -273,7 +277,7 @@ def headroom_chart(h: pd.DataFrame, book_bad_rate: float, tail_bad_rate: float, 
     base_layout(fig, "Declining the riskiest tail buys room for more approvals only if new approvals are safer than that tail",
                 f"New approvals per declined loan at an unchanged book bad rate ({book_bad_rate:.2%}), by the bad rate of the new approvals", height=height, legend=False)
     fig.update_xaxes(title="Bad rate of newly approved applicants (unknown: measure with a test)", tickformat=".0%")
-    fig.update_yaxes(title="New approvals per declined loan", type="log")
+    fig.update_yaxes(title="New approvals per declined loan", range=[0, min(12, float(d.new_approvals_per_decline.max()) * 1.05)])
     return fig
 
 
@@ -285,8 +289,8 @@ def tier_bars(tiers: pd.DataFrame, height: int = 360) -> go.Figure:
                          textfont=dict(color=INK_2), hovertemplate="%{x}<br>%{y:,.0f} per month<extra></extra>"), row=1, col=1)
     fig.add_trace(go.Bar(x=tiers.tier, y=tiers.bad_rate, marker_color=colors, width=0.5, text=[f"{v:.1%}" for v in tiers.bad_rate], textposition="outside",
                          textfont=dict(color=INK_2), hovertemplate="%{x}<br>bad rate %{y:.2%}<extra></extra>"), row=1, col=2)
-    base_layout(fig, "Most applications are approved automatically; review is reserved for the grey zone",
-                "Three-tier policy on the out-of-time test window: volume per month and bad rate by tier", height=height, legend=False)
+    base_layout(fig, "Review is reserved for the grey zone", "Volume per month and bad rate by tier, out-of-time test window", height=height, legend=False)
+    fig.update_xaxes(tickangle=0)
     fig.update_yaxes(rangemode="tozero")
     fig.update_yaxes(tickformat=".0%", row=1, col=2)
     fig.update_yaxes(tickformat=",.0f", row=1, col=1)
@@ -364,7 +368,7 @@ def segment_bad_rate(t: pd.DataFrame, segment: str, overall: float | None = None
                          customdata=np.c_[t.loans, t.bads], hovertemplate="%{x}<br>bad rate %{y:.2%}<br>%{customdata[1]:,.0f} bads of %{customdata[0]:,.0f}<extra></extra>"), row=1, col=1)
     if overall is not None:
         fig.add_hline(y=overall, line=dict(color=AXIS, width=1), row=1, col=1)
-        fig.add_annotation(x=1, xref="x domain", y=overall, yref="y", text=f"overall {overall:.2%}", showarrow=False, yshift=9, xanchor="right", font=dict(size=10.5, color=INK_2), row=1, col=1)
+        fig.add_annotation(x=0, xref="x domain", y=overall, yref="y", text=f"overall {overall:.2%}", showarrow=False, yshift=9, xanchor="left", font=dict(size=10.5, color=INK_2), row=1, col=1)
     fig.add_trace(go.Bar(x=t.value, y=t.share, marker_color=NEUTRAL, width=0.55, hovertemplate="%{x}<br>%{y:.1%} of loans<extra></extra>"), row=1, col=2)
     hi, lo = t.loc[t.bad_rate.idxmax()], t.loc[t.bad_rate.idxmin()]
     base_layout(fig, f"{segment}: bad rate ranges from {lo.bad_rate:.1%} ({lo.value}) to {hi.bad_rate:.1%} ({hi.value})",
@@ -383,7 +387,8 @@ def segment_trend(t: pd.DataFrame, segment: str, height: int = 380) -> go.Figure
     for i, (val, g) in enumerate(t.groupby("value", sort=False)):
         fig.add_trace(go.Scatter(x=[_month_label(m) for m in g.decision_month], y=g.bad_rate, mode="lines", name=str(val), line=dict(color=order[i % 8], width=2),
                                  customdata=g.loans, hovertemplate="%{x}<br>" + str(val) + ": %{y:.2%} (%{customdata:,.0f} loans)<extra></extra>"))
-    base_layout(fig, f"{segment}: the ranking of segments is stable over time", "Bad rate by decision month and segment (%)", height=height)
+    base_layout(fig, f"{segment}: bad rate by month", "Bad rate by decision month for the largest segments (%)", height=height)
+    fig.update_layout(margin=dict(b=80))
     fig.update_yaxes(tickformat=".1%", rangemode="tozero")
     fig.update_xaxes(tickangle=-45, tickfont=dict(size=10.5))
     return fig
@@ -401,3 +406,15 @@ def explanation_bars(contrib: pd.Series, labels: dict, values: dict, top: int = 
     fig.update_layout(margin=dict(l=380))
     fig.update_xaxes(title="Impact on log-odds of default", zeroline=False)
     return fig
+
+
+def setup_notebook_renderer() -> str:
+    """Interactive charts plus a static PNG copy (so GitHub can show them) when kaleido can find Chrome; interactive only otherwise."""
+    import plotly.io as pio
+
+    try:
+        go.Figure().to_image(format="png", width=10, height=10)
+        pio.renderers.default = "notebook+png"
+    except Exception:  # noqa: BLE001
+        pio.renderers.default = "notebook"
+    return pio.renderers.default

@@ -2,7 +2,7 @@
 # First time:  make setup   (needs uv; on macOS also `brew install libomp` for LightGBM)
 PY := .venv/bin/python
 
-.PHONY: setup all sql notebooks export report app screenshots sql-check clean
+.PHONY: setup all sql notebooks export report app screenshots qa test sql-check clean
 
 setup:
 	uv venv --python 3.12 .venv
@@ -28,6 +28,12 @@ app:            ## launch the Streamlit demo app
 
 screenshots:    ## capture each dashboard page to reports/figures/ (needs: $(PY) -m playwright install chromium)
 	$(PY) scripts/screenshot_dashboard.py
+
+qa:             ## click through every dashboard page, tab and option; fails on any error
+	$(PY) scripts/qa_dashboard.py
+
+test:           ## unit tests for the cost and policy formulas
+	$(PY) -m pytest -q tests
 
 sql-check:      ## run every SQL file on its own to prove each one executes independently
 	$(PY) scripts/check_sql_files.py

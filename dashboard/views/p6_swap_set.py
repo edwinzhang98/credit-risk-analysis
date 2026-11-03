@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from common import base_economics, how_to_read, load, page_header
+from common import base_economics, how_to_read, load, page_header, styled
 from src import charts
 from src.strategy import (approve_at_rate, approve_below, approve_ev_positive, evaluate_policy, headroom_table, rate_at_same_bad_rate,
                           swap_set, swap_summary)
@@ -21,8 +21,9 @@ mode = st.radio("Question", ["1 · Move the cut-off on today's book", "2 · Swit
 
 def fmt_swap(sw):
     out = sw[["cell", "applications", "share", "bads", "bad_rate", "bad_rate_ci_low", "bad_rate_ci_high", "loan_amount", "credit_loss_if_approved", "net_value_if_approved"]].copy()
-    return out.style.format({"applications": "{:,.0f}", "share": "{:.1%}", "bads": "{:,.0f}", "bad_rate": "{:.2%}", "bad_rate_ci_low": "{:.2%}", "bad_rate_ci_high": "{:.2%}",
-                             "loan_amount": "{:,.0f}", "credit_loss_if_approved": "{:,.0f}", "net_value_if_approved": "{:,.0f}"})
+    return styled(out, {"applications": "{:,.0f}", "share": "{:.1%}", "bads": "{:,.0f}", "bad_rate": "{:.2%}", "bad_rate_ci_low": "{:.2%}", "bad_rate_ci_high": "{:.2%}",
+                        "loan_amount": "{:,.0f}", "credit_loss_if_approved": "{:,.0f}", "net_value_if_approved": "{:,.0f}"})
+
 
 if mode.startswith("1"):
     c1, c2 = st.columns(2)
@@ -38,8 +39,8 @@ if mode.startswith("1"):
     sw = swap_set(cur, new, y, amt, g, l)
     out = sw[sw.cell.str.startswith("Swap-out")].iloc[0]
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Applications declined (swap-outs)", f"{out.applications:,.0f}", f"{out.share:.1%} of the book", delta_color="off")
-    k2.metric("Their bad rate", f"{out.bad_rate:.1%}", f"book {B:.2%}", delta_color="off")
+    k1.metric("Applications declined (swap-outs)", f"{out.applications:,.0f}", help=f"{out.share:.1%} of the loans the historical policy approved")
+    k2.metric("Their bad rate", f"{out.bad_rate:.1%}", help=f"Whole book: {B:.2%}; 95% interval {out.bad_rate_ci_low:.1%} to {out.bad_rate_ci_high:.1%}")
     k3.metric("Book bad rate after", f"{y[new].mean():.2%}", f"{y[new].mean() - B:+.2%}", delta_color="inverse")
     k4.metric("Net value of declining them", charts.fmt_money(-out.net_value_if_approved),
               help="Credit losses avoided minus margin forgone on the declined good customers, over the quarter.")
@@ -92,7 +93,9 @@ else:
                                     share_cash=("product_type", lambda v: (v == "CAL").mean()), share_new_to_lender=("is_new_to_lender", "mean"),
                                     mean_pd_champion=("pd_champion", "mean"), mean_pd_challenger=("pd_challenger", "mean"))
     c2.markdown("**Who they are**")
-    c2.dataframe(prof.reindex(["Swap-in", "Swap-out", "Approved by both", "Declined by both"]).round(3), use_container_width=True)
+    prof = prof.reindex(["Swap-in", "Swap-out", "Approved by both", "Declined by both"]).reset_index()
+    c2.dataframe(styled(prof, {"applications": "{:,.0f}", "bad_rate": "{:.2%}", "median_amount": "{:,.0f}", "share_cash": "{:.1%}", "share_new_to_lender": "{:.1%}",
+                               "mean_pd_champion": "{:.2%}", "mean_pd_challenger": "{:.2%}"}), hide_index=True, use_container_width=True)
 
 how_to_read("""
 **Swap set** is the standard way risk teams describe a policy change. Every application lands in one of four cells: approved under both

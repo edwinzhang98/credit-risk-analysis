@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from common import CACHE, how_to_read, kpi_row, load, metrics, page_header
+from common import CACHE, how_to_read, kpi_row, load, metrics, page_header, styled
 from src import charts
 from src.explain import fmt_value
 from src.features import LABELS
@@ -13,19 +13,23 @@ from src.features import LABELS
 m = metrics()
 mm = m["models"]
 CH, CP = "Challenger (LightGBM)", "Champion (scorecard)"
+_imp = load("shap_global")
+_gs = _imp.groupby("group").share.sum()
+track_share = float(_gs.get("Repayment history", 0) + _gs.get("Previous applications", 0))
 page_header("Model & explainability", "How well do the two models separate good from bad customers, and why is a given applicant declined?")
 
 kpi_row([
     ("Gini, challenger (out-of-time)", f"{mm['gini_test_challenger']:.3f}", "Rank-ordering on Jan to Mar 2020; 0 = random, 1 = perfect."),
     ("Gini, champion scorecard", f"{mm['gini_test_champion']:.3f}", f"{mm['scorecard_variables']}-variable WOE logistic scorecard."),
     ("Calibration ratio (test)", f"{mm['calibration_ratio_test_challenger']:.2f}", "Mean predicted PD ÷ observed bad rate. Below 1 = the test quarter defaulted more than predicted."),
-    ("Top driver of declines", mm["top_driver"], "Largest average SHAP impact in the challenger."),
+    ("Impact from the client's track record", f"{track_share:.0%}", f"Share of the challenger's total SHAP impact from repayment history and previous applications. Largest single input: {mm['top_driver'].lower()}."),
 ])
 
 tab1, tab2, tab3 = st.tabs(["Why was this applicant declined?", "How good are the models?", "What drives the models?"])
 
 with tab1:
     sample, shp, vals = load("explain_sample"), load("explain_shap"), load("explain_values")
+    vals = vals.assign(case_id=vals.case_id.astype("int64"))
     typical = load("typical_values").set_index("feature").typical_approved
     c1, c2 = st.columns([1, 2])
     which = c1.radio("Show", ["Declined applicants", "Approved applicants"], horizontal=True)
@@ -66,8 +70,8 @@ with tab2:
     biz = load("model_business_comparison")
     st.markdown("**In money, on the out-of-time test window** (cost-based rule and fixed approval rates)")
     show = biz[["model", "policy", "approval_rate", "bad_rate_approved", "capture_rate", "false_positive_rate", "credit_loss", "forgone_margin", "net_profit"]].copy()
-    st.dataframe(show.style.format({"approval_rate": "{:.1%}", "bad_rate_approved": "{:.2%}", "capture_rate": "{:.1%}", "false_positive_rate": "{:.1%}",
-                                    "credit_loss": "{:,.0f}", "forgone_margin": "{:,.0f}", "net_profit": "{:,.0f}"}), hide_index=True, use_container_width=True)
+    st.dataframe(styled(show, {"approval_rate": "{:.1%}", "bad_rate_approved": "{:.2%}", "capture_rate": "{:.1%}", "false_positive_rate": "{:.1%}",
+                               "credit_loss": "{:,.0f}", "forgone_margin": "{:,.0f}", "net_profit": "{:,.0f}"}), hide_index=True, use_container_width=True)
     c1, c2 = st.columns(2)
     cal = load("calibration_test")
     fig = go.Figure()

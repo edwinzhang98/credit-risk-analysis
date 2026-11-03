@@ -67,6 +67,7 @@ Only approved loans have outcomes, so the bad rate of applicants we would *newly
 | **KS** | Max distance between the cumulative score distributions of bads and goods. |
 | **Calibration-in-the-large** | mean predicted PD ÷ observed bad rate (1.00 = perfect). |
 | **Calibration by decile** | mean PD vs observed bad rate inside each predicted-PD decile, with 95% Wilson intervals. |
+| **Calibration slope** | coefficient of a logistic regression of the outcome on the model's log-odds in a given window. 1.0 = the model spreads risk correctly (only the level may be off); below 1 = predictions too extreme; above 1 = too timid. |
 | **Brier score** | mean of (PD − outcome)². |
 
 ## Swap set
@@ -89,6 +90,7 @@ Each cell reports count, share, bads, bad rate with 95% CI, loan amount and expe
 | **PSI** (population stability index) of the score | Σᵢ (Aᵢ − Eᵢ) · ln(Aᵢ ÷ Eᵢ) over 10 bins set at the **training-window** score deciles; Eᵢ = training share, Aᵢ = share in the month being monitored. | < 0.10 stable · 0.10 to 0.25 investigate · > 0.25 act |
 | **CSI** (characteristic stability index) | PSI applied to one input feature (missing values get their own bin). | same |
 | **Monthly Gini** | Gini within each decision month. | alert if more than 5 points below the validation Gini |
+| **Early delinquency** (proposed, not in this dataset) | share of a vintage that is 30+ days past due at month 3 on book, compared with the share expected for those PDs. The fastest outcome signal; the dataset only carries a final default flag. | investigate at +20% vs expected, act at +40% |
 | **Calibration ratio by month** | mean PD ÷ observed bad rate per month. | alert outside 0.8 to 1.25 |
 | **Vintage bad rate** | bads ÷ loans booked in the vintage month. | |
 | **Vintage curve** (full definition) | cumulative bad rate of a vintage by months on book (MOB 1, 2, 3, ...). Needs the date of default; **not available in this dataset**, which only has a final default flag, so vintages are compared on their final bad rate. | |

@@ -93,3 +93,24 @@ CSS = """
 
 def apply_css() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
+
+
+HEADERS = {
+    "cell": "Cell", "applications": "Applications", "share": "Share", "bads": "Defaults", "bad_rate": "Bad rate",
+    "bad_rate_ci_low": "95% CI low", "bad_rate_ci_high": "95% CI high", "loan_amount": "Loan amount (CU)",
+    "credit_loss_if_approved": "Credit loss if approved (CU)", "net_value_if_approved": "Net value if approved (CU)",
+    "model": "Model", "policy": "Policy", "approval_rate": "Approval rate", "bad_rate_approved": "Bad rate of approved",
+    "capture_rate": "Defaults declined (capture)", "false_positive_rate": "Good customers declined", "credit_loss": "Credit loss (CU)",
+    "forgone_margin": "Margin forgone (CU)", "net_profit": "Net profit (CU)", "tier": "Tier", "per_month": "Per month",
+    "median_amount": "Median loan (CU)", "review_cost": "Review cost (CU)", "group": "Group", "approval_rate_ratio": "Approval-rate ratio",
+    "observed_bad_rate": "Observed bad rate", "mean_pd": "Mean predicted PD", "calibration_ratio": "Calibration ratio",
+    "reviews": "Reviews", "pd_from": "PD from", "pd_to": "PD to", "smallest_loan": "Smallest loan (CU)",
+    "share_cash": "Share cash loans", "share_new_to_lender": "Share new to lender", "mean_pd_champion": "Mean PD, champion",
+    "mean_pd_challenger": "Mean PD, challenger", "feature": "Input", "first_month": "First month flagged", "months_flagged": "Months flagged", "max_csi": "Max CSI",
+}
+
+
+def styled(df, formats: dict):
+    """Rename columns to readable headers and apply per-column number formats (keys use the original column names)."""
+    fmt = {HEADERS.get(k, k): v for k, v in formats.items() if k in df.columns}
+    return df.rename(columns=HEADERS).style.format(fmt)

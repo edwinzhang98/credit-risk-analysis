@@ -21,11 +21,10 @@ kpi_row([
 
 tab1, tab2, tab3, tab4 = st.tabs(["Reconciliation and ranges", "Time coverage", "Look-ahead leakage", "Feature inclusion log"])
 with tab1:
-    c1, c2 = st.columns(2)
-    c1.markdown("**Row counts by source table** (`sql/dq/dq_01_row_counts.sql`)")
-    c1.dataframe(rc, hide_index=True, use_container_width=True)
-    c2.markdown("**Keys and target** (`sql/dq/dq_02_keys_and_target.sql`)")
-    c2.dataframe(keys.assign(status=lambda d: d.violations.eq(d.expected).map({True: "pass", False: "FAIL"})), hide_index=True, use_container_width=True)
+    st.markdown("**Row counts by source table** (`sql/dq/dq_01_row_counts.sql`)")
+    st.dataframe(rc.style.format({"n_rows": "{:,.0f}", "n_cases": "{:,.0f}", "share_of_base_cases": "{:.1%}", "n_orphan_cases": "{:,.0f}"}), hide_index=True, use_container_width=True)
+    st.markdown("**Keys and target** (`sql/dq/dq_02_keys_and_target.sql`)")
+    st.dataframe(keys.assign(status=lambda d: d.violations.eq(d.expected).map({True: "pass", False: "FAIL"})), hide_index=True, use_container_width=True)
     st.markdown("**Value ranges in the fields that drive money** (`sql/dq/dq_06_value_ranges.sql`)")
     st.dataframe(vr, hide_index=True, use_container_width=True)
 with tab2:
@@ -36,9 +35,13 @@ with tab3:
     st.plotly_chart(charts.point_in_time_chart(pit), use_container_width=True)
     abl, grp, biz = load("leakage_ablation"), load("leakage_ablation_groups"), load("leakage_business")
     t = abl[abl.split == "test"]
-    st.markdown(f"**What the leak would have done to the model** (notebook 02): out-of-time Gini **{lk['gini_test_naive_offline']:.3f}** with the snapshot fields as provided "
-                f"vs **{lk['gini_test_pit']:.3f}** point-in-time. The difference sits in the **{lk['share_post_decision_activity']:.1%}** of loans whose client did "
-                f"something after the decision (Gini {lk['gini_post_activity_naive']:.3f} vs {lk['gini_post_activity_pit']:.3f} in that group).")
+    gap_post = lk["gini_post_activity_naive"] - lk["gini_post_activity_pit"]
+    gap_rest = lk.get("gini_no_activity_naive", float("nan")) - lk.get("gini_no_activity_pit", float("nan"))
+    st.markdown(f"**What the leak does to the model** (notebook 02): with the snapshot fields as provided, out-of-time Gini is **{lk['gini_test_naive_offline']:.3f}** vs "
+                f"**{lk['gini_test_pit']:.3f}** point-in-time; with decision-time values swapped in where they can be rebuilt, **{lk['gini_test_naive_decision_time']:.3f}**. "
+                f"The naive model's edge is larger among the **{lk['share_post_decision_activity']:.1%}** of clients who did something after the decision "
+                f"({gap_post:+.3f} vs {gap_rest:+.3f} Gini elsewhere). The rest comes from snapshot fields that mix pre- and post-decision information; they were dropped, "
+                f"at a cost of less than one Gini point.")
     c1, c2 = st.columns(2)
     c1.dataframe(grp.pivot_table(index="model", columns="group", values="gini").round(3), use_container_width=True)
     c2.dataframe(biz.round(4), hide_index=True, use_container_width=True)

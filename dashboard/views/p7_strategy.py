@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from common import base_economics, base_review, how_to_read, load, metrics, page_header
+from common import base_economics, base_review, how_to_read, load, metrics, page_header, styled
 from src import charts
 from src.economics import PRODUCT_NAMES, Review
 from src.strategy import approve_ev_positive, assign_tiers, evaluate_policy, tier_outcomes
@@ -35,18 +35,19 @@ with tab1:
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Approval rate (after review)", f"{tot['approval_rate']:.1%}")
     k2.metric("Bad rate of approved loans", f"{tot['bad_rate_approved']:.2%}")
-    k3.metric("Reviews per month", f"{tot['reviews_per_month']:,.0f}", f"capacity {cap * len(T) / MONTHS:,.0f}", delta_color="off")
+    k3.metric("Reviews per month", f"{tot['reviews_per_month']:,.0f}", help=f"Capacity: {cap * len(T) / MONTHS:,.0f} reviews a month")
     k4.metric("Net profit vs two-tier rule", charts.fmt_money(tot["net_profit"]), charts.fmt_money(tot["net_profit"] - two["net_profit"]))
-    c1, c2 = st.columns([1.3, 1])
-    c1.plotly_chart(charts.tier_bars(tab), use_container_width=True)
+    st.plotly_chart(charts.tier_bars(tab), use_container_width=True)
     show = tab[["tier", "applications", "share", "per_month", "bad_rate", "median_amount", "credit_loss", "forgone_margin", "review_cost", "net_profit"]]
-    c2.dataframe(show.style.format({"applications": "{:,.0f}", "share": "{:.1%}", "per_month": "{:,.0f}", "bad_rate": "{:.2%}", "median_amount": "{:,.0f}",
-                                    "credit_loss": "{:,.0f}", "forgone_margin": "{:,.0f}", "review_cost": "{:,.0f}", "net_profit": "{:,.0f}"}), hide_index=True, use_container_width=True)
+    st.dataframe(styled(show, {"applications": "{:,.0f}", "share": "{:.1%}", "per_month": "{:,.0f}", "bad_rate": "{:.2%}", "median_amount": "{:,.0f}",
+                               "credit_loss": "{:,.0f}", "forgone_margin": "{:,.0f}", "review_cost": "{:,.0f}", "net_profit": "{:,.0f}"}), hide_index=True, use_container_width=True)
+    c1, c2 = st.columns([1, 1])
     rt = T.assign(tier=np.array(["Auto-approve", "Manual review", "Decline"])[tiers], pd=pH)
     rr = rt[rt.tier == "Manual review"].groupby("product_type").agg(reviews=("pd", "size"), pd_from=("pd", "min"), pd_to=("pd", "max"), smallest_loan=("loan_amount", "min"))
     if len(rr):
-        c2.markdown("**Who gets reviewed**")
-        c2.dataframe(rr.rename(index=PRODUCT_NAMES).style.format({"reviews": "{:,.0f}", "pd_from": "{:.1%}", "pd_to": "{:.1%}", "smallest_loan": "{:,.0f}"}), use_container_width=True)
+        c1.markdown("**Who gets reviewed**")
+        rr = rr.rename(index=PRODUCT_NAMES).rename_axis("Product").reset_index()
+        c1.dataframe(styled(rr, {"reviews": "{:,.0f}", "pd_from": "{:.1%}", "pd_to": "{:.1%}", "smallest_loan": "{:,.0f}"}), hide_index=True, use_container_width=True)
 
 with tab2:
     fair = load("fairness")
@@ -56,9 +57,9 @@ with tab2:
     if att == "Sex":
         sub["group"] = sub.group.map({"F": "Female", "M": "Male"}).fillna(sub.group)
     st.plotly_chart(charts.fairness_bars(sub, att.lower(), title=f"{pol}: approval-rate ratio by {att.lower()} (lowest {sub.approval_rate_ratio.min():.2f})"), use_container_width=True)
-    st.dataframe(sub[["group", "applications", "approval_rate", "approval_rate_ratio", "observed_bad_rate", "bad_rate_approved", "mean_pd", "calibration_ratio"]]
-                 .style.format({"applications": "{:,.0f}", "approval_rate": "{:.1%}", "approval_rate_ratio": "{:.2f}", "observed_bad_rate": "{:.2%}",
-                                "bad_rate_approved": "{:.2%}", "mean_pd": "{:.2%}", "calibration_ratio": "{:.2f}"}), hide_index=True, use_container_width=True)
+    st.dataframe(styled(sub[["group", "applications", "approval_rate", "approval_rate_ratio", "observed_bad_rate", "bad_rate_approved", "mean_pd", "calibration_ratio"]],
+                        {"applications": "{:,.0f}", "approval_rate": "{:.1%}", "approval_rate_ratio": "{:.2f}", "observed_bad_rate": "{:.2%}",
+                         "bad_rate_approved": "{:.2%}", "mean_pd": "{:.2%}", "calibration_ratio": "{:.2f}"}), hide_index=True, use_container_width=True)
     pr = load("proxy_check")
     st.caption("Proxy check (notebook 02): the 90 model inputs predict " + "; ".join(f"{r.attribute.lower()} with AUC {r.auc_from_model_inputs:.2f}" for r in pr.itertuples())
                + " (0.5 = no information). Excluding an attribute does not stop proxies, so outcomes are tested by group.")
@@ -66,16 +67,17 @@ with tab2:
 with tab3:
     mon = load("monitoring_monthly")
     c1, c2 = st.columns(2)
-    c1.plotly_chart(charts.monitor_lines(mon, "psi", "Score PSI fired when the population changed in April 2020", "PSI of each model's PD vs the training window by month",
+    c1.plotly_chart(charts.monitor_lines(mon, "psi", "Score PSI stayed below the investigate line, even through COVID", "PSI of each model's PD vs the training window by month",
                                          fmt=".3f", bands=((0.10, "investigate", charts.STATUS["warning"]), (0.25, "act", charts.STATUS["critical"]))), use_container_width=True)
-    c2.plotly_chart(charts.monitor_lines(mon, "gini", "Rank-ordering held up through the shock", "Gini by decision month", fmt=".3f"), use_container_width=True)
+    c2.plotly_chart(charts.monitor_lines(mon[mon.decision_month >= 201911], "gini", "Rank-ordering held up through the shock", "Gini by decision month, out-of-sample months only", fmt=".3f"),
+                    use_container_width=True)
     c1.plotly_chart(charts.monitor_lines(mon, "calibration_ratio", "The PD level drifted with the population", "Mean predicted PD ÷ observed bad rate by month (1.0 = calibrated)", fmt=".2f",
                                          bands=((0.8, "0.80", charts.STATUS["warning"]), (1.25, "1.25", charts.STATUS["warning"]))), use_container_width=True)
     c2.plotly_chart(charts.monitor_lines(mon, "approval_rate_cost_rule", "Approval rate under the same rule moved with the mix", "Share approved by the cost-based rule by month", fmt=".1%"),
                     use_container_width=True)
     csi = load("csi_flags")
     st.markdown("**Inputs that drifted (characteristic stability index ≥ 0.10)**")
-    st.dataframe(csi, hide_index=True, use_container_width=True)
+    st.dataframe(styled(csi, {"max_csi": "{:.2f}"}), hide_index=True, use_container_width=True)
     st.markdown("""
 | Metric | Frequency | Investigate | Act | Owner |
 |---|---|---|---|---|
@@ -99,7 +101,7 @@ with tab4:
          "Measure": "30+ days past due at month 3, then full default; pre-registered decision rule", "Risk": "less transparent than the scorecard; requires SHAP reason codes in production"},
         {"For": "Credit Policy + Finance", "Do": "Run a below-cut-off test: approve a random 10% of the declined band with capped amounts",
          "Expected impact": "measures the bad rate of today's rejects, the number that decides whether approvals can rise at a flat bad rate",
-         "Measure": "bad rate of test approvals vs the declined tail", "Risk": f"expected cost ≈ {charts.fmt_money(m['test_design']['expected_net_cost_per_month'])} a month"},
+         "Measure": "bad rate of test approvals vs the declined tail", "Risk": f"about {m['test_design']['below_cutoff_loans_needed']:,} test loans; expected cost ≈ {charts.fmt_money(m['test_design']['price_of_information'])}"},
         {"For": "Underwriting operations", "Do": "Route the grey zone to manual review within capacity; log review outcomes",
          "Expected impact": f"{m['three_tier']['totals']['reviews_per_month']:,.0f} reviews a month; {charts.fmt_money(m['three_tier']['uplift_vs_two_tier'])} a quarter if reviewers catch 40% of bads",
          "Measure": "review hit rate, review cost per case, turnaround time", "Risk": "value depends on the reviewer hit rate, which is not yet measured"},
@@ -107,7 +109,8 @@ with tab4:
          "Expected impact": "documented fair-lending position before go-live", "Measure": "approval-rate ratio by sex and age band each quarter",
          "Risk": "inputs still carry age information (proxy AUC 0.84)"},
         {"For": "Risk analytics", "Do": "Monthly monitoring pack (PSI, CSI, calibration, approval rate, overrides) with the triggers above",
-         "Expected impact": "catches population shifts within a month (as in April 2020)", "Measure": "alerts raised and actioned", "Risk": "lagging metrics need mature vintages"},
+         "Expected impact": "input shifts caught within a month; outcome shifts within one to three months via early delinquency", "Measure": "alerts raised and actioned",
+         "Risk": "score stability alone missed the 2020 outcome shift; calibration needs mature vintages"},
     ])
     st.dataframe(rec, hide_index=True, use_container_width=True)
 
@@ -121,7 +124,10 @@ reviews are kept. Move the sliders: a better reviewer or a cheaper review widens
 screen) is a trigger for review, not a legal verdict. Look at the bad rates next to it: younger applicants are approved less often because they
 default more often in this book, and the calibration ratio shows whether the model over- or under-states their risk.
 
-**Monitoring.** PSI (population stability index) compares this month's score distribution with the one the model was built on. It reacts as soon
-as applicants change, before any defaults are observed; Gini and calibration need outcomes, so they lag. In April 2020 PSI jumped while Gini held:
-the population changed, the model did not break. That calls for re-checking cut-offs and calibration, not rebuilding the model.
+**Monitoring.** PSI (population stability index) compares this month's score distribution with the one the model was built on; CSI does the same
+for one input. They react as soon as applicants change, before any defaults are observed. Gini and calibration need outcomes, so they lag. The
+COVID months are the lesson: score PSI stayed below 0.10, yet the bad rate halved and predicted PDs ran well above actual. Only calibration showed
+it, months later, while feature CSI caught a data-capture break (the employment field) at once. Hence the plan tracks an early outcome (30+ days
+past due at month 3) next to PSI, and treats "PSI fine, calibration off, Gini fine" as a level problem: re-check cut-offs and calibration, do not
+rebuild the model.
 """)
