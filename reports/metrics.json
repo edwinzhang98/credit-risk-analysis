@@ -26,7 +26,7 @@
     "naive_decision_time_profit_gap": 0.0032191897606659303,
     "proxy_auc_sex": 0.6309071360043327,
     "proxy_auc_age50": 0.836616662341206,
-    "n_unstable_features": 5
+    "n_unstable_features": 6
   },
   "models": {
     "scorecard_variables": 16,
@@ -65,7 +65,11 @@
       "Affordability": 0.15075800803692652,
       "Contact details": 0.08169518671188139,
       "Credit bureau": 0.051617210350126765
-    }
+    },
+    "gini_test_scorecard_empirical_missing": 0.4642558091780551,
+    "gini_test_lgbm_on_scorecard_vars": 0.48918503908042066,
+    "gap_from_algorithm": 0.026688093610251595,
+    "gap_from_more_inputs": 0.08903913757225745
   },
   "economics": {
     "lgd": 0.75,
@@ -138,7 +142,41 @@
   "approve_all": {
     "bad_rate_approved": 0.044139374261836437,
     "credit_loss": 393294425.12196004,
-    "net_profit": 899519970.60722
+    "net_profit": 899519970.60722,
+    "total_cost": 393294425.12196004
+  },
+  "vs_today": {
+    "Champion (scorecard)": {
+      "total_cost_change": -0.11680704124929864,
+      "credit_loss_change": -0.18961734033040067
+    },
+    "Challenger (LightGBM)": {
+      "total_cost_change": -0.23464908733233947,
+      "credit_loss_change": -0.35390656147393285
+    }
+  },
+  "uncertainty": {
+    "room_net_gain": {
+      "low": 85974261.89798278,
+      "high": 98679461.31144552
+    },
+    "same_bad_rate_uplift_pp": {
+      "low": 0.029293473623703846,
+      "high": 0.03581434877694999
+    },
+    "same_rate_credit_loss_change": {
+      "low": -0.23046204933796346,
+      "high": -0.20129136338993486
+    },
+    "swap_out_minus_swap_in_bad_rate": {
+      "low": 0.06601440953591252,
+      "high": 0.0857581004537878
+    }
+  },
+  "test_pass": {
+    "swap_in_bad_rate": 0.12456973869200562,
+    "new_approvals_per_decline": 1.516263310813662,
+    "net_change_per_quarter": 10648.963312153408
   },
   "room": {
     "Champion (scorecard)": {
@@ -170,24 +208,6 @@
   },
   "headroom_points": [
     {
-      "swap_in_bad_rate": 0.05517421782729555,
-      "new_approvals_per_decline": 11.05168459683223,
-      "swap_ins_affordable": 227963.0981788584,
-      "net_change_in_approvals": 207336.0981788584,
-      "swap_in_bad_rate_vs_book": 1.25,
-      "swap_ins_per_month": 75987.6993929528,
-      "net_change_per_month": 69112.03272628614
-    },
-    {
-      "swap_in_bad_rate": 0.06620906139275465,
-      "new_approvals_per_decline": 5.525842298416118,
-      "swap_ins_affordable": 113981.54908942927,
-      "net_change_in_approvals": 93354.54908942927,
-      "swap_in_bad_rate_vs_book": 1.4999999999999998,
-      "swap_ins_per_month": 37993.84969647643,
-      "net_change_per_month": 31118.18302980976
-    },
-    {
       "swap_in_bad_rate": 0.08827874852367287,
       "new_approvals_per_decline": 2.7629211492080583,
       "swap_ins_affordable": 56990.774544714615,
@@ -204,6 +224,15 @@
       "swap_in_bad_rate_vs_book": 2.9999999999999996,
       "swap_ins_per_month": 9498.462424119105,
       "net_change_per_month": 2622.795757452438
+    },
+    {
+      "swap_in_bad_rate": 0.12456973869200562,
+      "new_approvals_per_decline": 1.516263310813662,
+      "swap_ins_affordable": 31275.963312153406,
+      "net_change_in_approvals": 10648.963312153408,
+      "swap_in_bad_rate_vs_book": 2.822190861906044,
+      "swap_ins_per_month": 10425.321104051136,
+      "net_change_per_month": 3549.6544373844695
     },
     {
       "swap_in_bad_rate": 0.16609298492267416,
@@ -419,34 +448,88 @@
     "psi_max_test_challenger": 0.007555378595134971,
     "csi_flags": [
       {
-        "feature": "ap_days_since_first_app",
-        "first_month": 202007,
-        "months_flagged": 4,
-        "max_csi": 0.11568964658592754
-      },
-      {
         "feature": "employment_years",
+        "label": "Years with current employer",
         "first_month": 202004,
         "months_flagged": 7,
         "max_csi": 0.8647550648285366
       },
       {
-        "feature": "loan_term_months",
-        "first_month": 201903,
+        "feature": "cb_enquiries_1_to_6m",
+        "label": "Credit checks 1-6 months before applying",
+        "first_month": 201912,
+        "months_flagged": 10,
+        "max_csi": 0.3728922300393937
+      },
+      {
+        "feature": "cb_enquiries_1_to_4m",
+        "label": "Credit checks 1-4 months before applying",
+        "first_month": 201912,
+        "months_flagged": 10,
+        "max_csi": 0.349678236516096
+      },
+      {
+        "feature": "ap_last_reject_reason",
+        "label": "Reason for the last rejection",
+        "first_month": 202002,
         "months_flagged": 9,
+        "max_csi": 0.2441535856218303
+      },
+      {
+        "feature": "cb_enquiries_1_to_12m",
+        "label": "Credit checks 1-12 months before applying",
+        "first_month": 202002,
+        "months_flagged": 9,
+        "max_csi": 0.23764084036961125
+      },
+      {
+        "feature": "loan_term_months",
+        "label": "Loan term (months)",
+        "first_month": 201911,
+        "months_flagged": 7,
         "max_csi": 0.22565608771405907
       },
       {
+        "feature": "cb_enquiries_6_to_12m",
+        "label": "Credit checks 6-12 months before applying",
+        "first_month": 202002,
+        "months_flagged": 9,
+        "max_csi": 0.18503608738772434
+      },
+      {
+        "feature": "cb_has_enquiry_record",
+        "label": "Has a credit-bureau enquiry record",
+        "first_month": 202002,
+        "months_flagged": 9,
+        "max_csi": 0.16559020345689557
+      },
+      {
+        "feature": "payment_to_income",
+        "label": "Monthly payment as share of income",
+        "first_month": 202008,
+        "months_flagged": 1,
+        "max_csi": 0.13153144660301913
+      },
+      {
         "feature": "monthly_payment",
+        "label": "Monthly payment on this loan",
         "first_month": 202007,
         "months_flagged": 2,
         "max_csi": 0.11883527759550289
       },
       {
-        "feature": "payment_to_income",
-        "first_month": 202008,
+        "feature": "ap_days_since_first_app",
+        "label": "Length of application history (days)",
+        "first_month": 202007,
+        "months_flagged": 4,
+        "max_csi": 0.11568964658592754
+      },
+      {
+        "feature": "product_type",
+        "label": "Product (cash, point-of-sale or card)",
+        "first_month": 202004,
         "months_flagged": 1,
-        "max_csi": 0.13153144660301913
+        "max_csi": 0.10947734449974089
       }
     ]
   },

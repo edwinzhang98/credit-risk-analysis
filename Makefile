@@ -32,7 +32,7 @@ screenshots:    ## capture each dashboard page to reports/figures/ (needs: $(PY)
 qa:             ## click through every dashboard page, tab and option; fails on any error
 	$(PY) scripts/qa_dashboard.py
 
-test:           ## unit tests for the cost and policy formulas
+test:           ## unit tests: cost and policy formulas, scorecard points and reason codes, stability index
 	$(PY) -m pytest -q tests
 
 sql-check:      ## run every SQL file on its own to prove each one executes independently

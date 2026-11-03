@@ -29,7 +29,7 @@ with tab1:
     st.dataframe(vr, hide_index=True, use_container_width=True)
 with tab2:
     st.plotly_chart(charts.monthly_volume_bad_rate(tr, CFG["split"]), use_container_width=True)
-    st.caption("The April 2020 break (volume down about 85%, bad rate halved) is why model building stops at March 2020 and the later months are used to test monitoring.")
+    st.caption("The April 2020 break (volume down about 86%, bad rate halved) is why model building stops at March 2020 and the later months are used to test monitoring.")
 with tab3:
     st.plotly_chart(charts.snapshot_offset_chart(off), use_container_width=True)
     st.plotly_chart(charts.point_in_time_chart(pit), use_container_width=True)

@@ -11,7 +11,7 @@
 --   R1  Only applications created strictly before the decision date are used (removes 144,679 rows, 2.2%).
 --   R2  The source keeps at most 20 rows per case INCLUDING post-decision rows, so a client who applied again after the
 --       decision would show fewer pre-decision rows. Only the 15 most recent pre-decision rows are used, which makes the
---       window independent of post-decision activity for 99.98% of cases.
+--       window independent of post-decision activity for all but 171 cases (99.99%).
 --   R3  Status, DPD and balances were captured at the snapshot (decision + 14 days):
 --       * "approved" = approval date before the decision (an event date), not the snapshot status;
 --         "rejected" = status D, "cancelled" = status T (both fixed at application time).
@@ -19,8 +19,8 @@
 --         (or scheduled end) is before the decision: its max days-past-due is final and used as is.
 --       * For every other contract, max DPD is reduced by 14 days and floored at 0. DPD grows by at most 1 day per day,
 --         so this is a guaranteed lower bound of what was known at the decision. (Evidence the raw value leaks:
---         contracts whose first instalment falls after the decision still show DPD 1-14 on 4.4% of rows, bad rate
---         13.8% vs 4.1%.)
+--         of the earlier contracts whose first instalment falls after the decision, 3.7% of those with a recorded DPD
+--         already show DPD 1-14 (858 rows); their loans default at 14.0% vs 4.2% for the other rows.)
 --       * Snapshot balances (current debt, outstanding debt, actual DPD, card balances) are not used. Exposure at the
 --         decision is rebuilt from the instalments of contracts approved before and not closed before the decision.
 --   R4  Fair lending: education, family state, district, number of children and profession are never read.

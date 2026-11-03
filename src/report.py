@@ -68,7 +68,7 @@ def build_report(cfg: dict | None = None) -> Path:
     F = {}  # figures (HTML snippets)
     curves = {CP: L("loss_curve_champion"), CH: L("loss_curve_challenger")}
     trade = {CP: L("tradeoff_champion"), CH: L("tradeoff_challenger")}
-    loss_fig = charts.loss_curve(curves, rule_points={CH: m["loss_curve"][CH]["rule"]["total_cost"]}, headline=CH)
+    loss_fig = charts.loss_curve(curves, rule_points={CH: m["loss_curve"][CH]["rule"]["total_cost"]}, headline=CH, baseline_cost=m["approve_all"]["total_cost"])
     F["loss"] = fig_html(loss_fig)
     F["monthly"] = fig_html(charts.monthly_volume_bad_rate(L("dq_time_range"), cfg["split"]))
     F["offset"] = fig_html(charts.snapshot_offset_chart(L("dq_snapshot_offset")))
@@ -139,7 +139,7 @@ def build_report(cfg: dict | None = None) -> Path:
     F["fair_sex"] = fig_html(charts.fairness_bars(sex, "sex", title=f"Approval rates by sex are virtually equal (ratio {sex.approval_rate_ratio.min():.2f})"))
     F["fair_age"] = fig_html(charts.fairness_bars(age, "age band", title=f"Lowest approval-rate ratio by age band is {age.approval_rate_ratio.min():.2f}, above the 0.80 screen"))
     mon = L("monitoring_monthly")
-    F["psi"] = fig_html(charts.monitor_lines(mon, "psi", "Score PSI stayed below the investigate line, even through the COVID months",
+    F["psi"] = fig_html(charts.monitor_lines(mon, "psi", "The challenger's score PSI stayed below 0.10; the scorecard's crossed it from May 2020",
                                              "Population stability index of each model's PD vs the training window, by decision month (shaded = monitoring window)",
                                              fmt=".3f", bands=((0.10, "investigate 0.10", charts.STATUS["warning"]), (0.25, "act 0.25", charts.STATUS["critical"]))))
     F["calratio"] = fig_html(charts.monitor_lines(mon, "calibration_ratio", "The PD level drifted: too low before COVID, too high after",
@@ -191,7 +191,7 @@ def build_report(cfg: dict | None = None) -> Path:
     grid = L("review_grid").pivot(index="bad_catch_rate", columns="good_decline_rate", values="net_profit_uplift_vs_two_tier")
     grid.index = [f"catch {v:.0%}" for v in grid.index]
     grid.columns = [f"good declined {v:.0%}" for v in grid.columns]
-    T["grid"] = table(grid.reset_index().rename(columns={"index": "reviewer hit rate"}), {c: money for c in grid.columns})
+    T["grid"] = table(grid.reset_index().rename(columns={"index": "reviewer catch rate"}), {c: money for c in grid.columns})
     T["fair"] = table(fair[["policy", "attribute", "group", "applications", "approval_rate", "approval_rate_ratio", "observed_bad_rate", "bad_rate_approved", "calibration_ratio"]],
                       {"applications": num, "approval_rate": pct, "approval_rate_ratio": lambda v: f"{v:.2f}", "observed_bad_rate": lambda v: pct(v, 2),
                        "bad_rate_approved": lambda v: pct(v, 2), "calibration_ratio": lambda v: f"{v:.2f}"})
@@ -226,6 +226,10 @@ def build_report(cfg: dict | None = None) -> Path:
     T["sens"] = table(L("economics_sensitivity"), {"breakeven_cash": pct, "breakeven_pos": pct, "breakeven_revolving": pct, "approval_rate": pct,
                                                    "bad_rate_approved": lambda v: pct(v, 2), "net_profit": money, "net_profit_gain_vs_approve_all": money})
     T["sizes"] = table(L("test_sizes"), {"loans_needed": num})
+    cc = L("champion_checks")
+    T["champion_checks"] = table(cc, {"valid_gini": lambda v: f"{v:.3f}", "test_gini": lambda v: f"{v:.3f}"})
+    bi = L("bootstrap_intervals")
+    U = {k: (r["low"], r["high"]) for k, r in bi.iterrows()}
     coefs = L("scorecard_coefficients").sort_values("iv", ascending=False)
     T["scorecard"] = table(coefs[["label", "feature", "iv", "coefficient"]], {"iv": lambda v: f"{v:.3f}", "coefficient": lambda v: f"{v:.3f}"})
     proxy = L("proxy_check")
@@ -235,7 +239,7 @@ def build_report(cfg: dict | None = None) -> Path:
     example = {
         "case_id": int(ex.case_id), "product": PRODUCT_NAMES.get(ex.product_type, ex.product_type), "amount": ex.loan_amount, "pd": ex.pd_challenger,
         "breakeven": ex.breakeven_pd, "reasons": [ex[f"reason_{i}"] for i in range(1, 5) if ex[f"reason_{i}"]], "sc_reasons": [ex[f"sc_reason_{i}"] for i in range(1, 5)],
-        "points": ex.score_champion, "outcome": "defaulted" if ex.target == 1 else "repaid",
+        "points": ex.score_champion, "outcome": "defaulted" if ex.target == 1 else "did not default",
     }
     fs, fa = sex.set_index("group"), age.set_index("group")
     notebooks = [(n, f"{n}.html") for n in ["01_data_audit", "02_feature_eng", "03_modeling", "04_threshold_and_strategy"]]
@@ -244,7 +248,9 @@ def build_report(cfg: dict | None = None) -> Path:
     env.filters.update(pct=pct, pp=pp, money=money, num=num)
     html = env.get_template("report.html.j2").render(
         m=m, F=F, T=T, CH=CH, CP=CP, plotly_js=get_plotlyjs(), today=date.today().isoformat(), example=example, track=track,
-        grp=grp.to_dict(), fs=fs, fa=fa, notebooks=notebooks, mon=mon, imp=imp,
+        grp=grp.to_dict(), fs=fs, fa=fa, notebooks=notebooks, mon=mon, imp=imp, U=U, cc=cc,
+        psi_cp_max=float(mon[(mon.model == CP) & (mon.decision_month >= 202004)].psi.max()),
+        psi_ch_max=float(mon[(mon.model == CH) & (mon.decision_month >= 202004)].psi.max()),
     )
     out = reports / "report.html"
     out.write_text(html)

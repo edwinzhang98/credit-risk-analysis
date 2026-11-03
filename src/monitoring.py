@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.metrics import gini, psi, quantile_edges
+from src.metrics import gini, psi, psi_categorical, quantile_edges
 
 PSI_WATCH, PSI_ACT = 0.10, 0.25
 
@@ -41,10 +41,14 @@ def monthly_score_monitor(df: pd.DataFrame, score_col: str, ref_mask, month_col:
 
 
 def monthly_csi(df: pd.DataFrame, features: list[str], ref_mask, month_col: str = "decision_month") -> pd.DataFrame:
-    """Characteristic stability index of each feature by month (reference = training window deciles)."""
+    """Characteristic stability index of each feature by month (reference = training window deciles; categories by share)."""
     rows = []
     ref = df.loc[ref_mask]
     for f in features:
+        if not pd.api.types.is_numeric_dtype(df[f]):
+            for month, g in df.groupby(month_col, sort=True):
+                rows.append({"feature": f, month_col: month, "csi": psi_categorical(ref[f], g[f])})
+            continue
         r = pd.to_numeric(ref[f], errors="coerce").to_numpy(float)
         if np.isnan(r).all():
             continue

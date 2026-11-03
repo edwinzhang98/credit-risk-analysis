@@ -73,28 +73,32 @@
 <h2 style="border-top:none;margin-top:10px">Executive summary</h2>
 <p class="lead"><b>Request.</b> "The business wants a higher approval rate, but the bad rate must not go up. Is there room on the current cut-off? If we move it, who goes from declined to approved, who goes from approved to declined, and how much money is at stake?"</p>
 <div class="kpis">
-  <div class="kpi"><div class="v">{{ (-m.loss_curve[CH].rule_cost_saving_vs_default) | pct(0) }}</div><div class="l">cost of wrong decisions, cost-based rule vs the default 0.5 cut-off</div></div>
-  <div class="kpi"><div class="v">{{ m.model_value.same_bad_rate.extra_approvals_pp | pp }}</div><div class="l">approvals at the same bad rate, challenger vs scorecard (≈ {{ m.model_value.same_bad_rate.extra_approvals_per_month | num }} loans a month)</div></div>
+  <div class="kpi"><div class="v">{{ m.vs_today[CH].total_cost_change | pct(0) }}</div><div class="l">cost of wrong decisions, cost-based rule vs today's policy (approve every booked loan)</div></div>
+  <div class="kpi"><div class="v">{{ m.model_value.same_bad_rate.extra_approvals_pp | pp }}</div><div class="l">approvals at the same bad rate, challenger vs a rebuilt scorecard applying the same rule (≈ {{ m.model_value.same_bad_rate.extra_approvals_per_month | num }} booked loans a month)</div></div>
   <div class="kpi"><div class="v">{{ m.room[CH].tail_bad_rate | pct }}</div><div class="l">bad rate of the {{ m.room[CH].declined_share | pct }} of today's approvals that the rule would decline (book: {{ m.data.test_bad_rate | pct(2) }})</div></div>
   <div class="kpi"><div class="v">{{ m.three_tier.totals.reviews_per_month | num }}</div><div class="l">manual reviews a month, within a capacity of {{ m.three_tier.capacity_per_month | num }}</div></div>
 </div>
 <ol>
-  <li><b>Set the cut-off from costs, not 0.5.</b> A defaulted loan costs about {{ m.economics.loss_rate | pct(0) }} of its amount (exposure at default × loss given default); a wrongly declined good customer costs the product's margin
+  <li><b>Set the cut-off from what a wrong decision costs.</b> A defaulted loan costs about {{ m.economics.loss_rate | pct(0) }} of its amount (exposure at default × loss given default); a wrongly declined good customer costs the product's margin
     ({{ m.economics.margin_by_product.CAL | pct(0) }} cash, {{ m.economics.margin_by_product.REL | pct(0) }} revolving, {{ m.economics.margin_by_product.COL | pct(0) }} point-of-sale). That puts the break-even PD at
     {{ m.economics.breakeven_by_product.CAL | pct }}, {{ m.economics.breakeven_by_product.REL | pct }} and {{ m.economics.breakeven_by_product.COL | pct }}. With the challenger model, the resulting rule cuts the total cost of wrong decisions by
-    <b>{{ m.loss_curve[CH].rule_cost_saving_vs_default | pct(0) }}</b> and credit losses by <b>{{ m.loss_curve[CH].rule_credit_loss_reduction_vs_default | pct(0) }}</b> versus a 0.5 cut-off, and lowers the bad rate of the approved book from
-    {{ m.data.test_bad_rate | pct(2) }} to {{ m.loss_curve[CH].rule.bad_rate_approved | pct(2) }}.</li>
+    <b>{{ (-m.vs_today[CH].total_cost_change) | pct(0) }}</b> and credit losses by <b>{{ (-m.vs_today[CH].credit_loss_change) | pct(0) }}</b> versus today's policy (approving every booked loan; a 0.5 cut-off does almost the same here), and lowers the
+    bad rate of the approved book from {{ m.data.test_bad_rate | pct(2) }} to {{ m.loss_curve[CH].rule.bad_rate_approved | pct(2) }}: worth {{ m.room[CH].net_gain | money }} over the quarter (95% bootstrap interval
+    {{ m.uncertainty.room_net_gain.low | money }} to {{ m.uncertainty.room_net_gain.high | money }}).</li>
   <li><b>On the current scorecard there is room to tighten, not to loosen.</b> Moving the cut-off only trades approvals for bad rate. The only way to approve more at the same bad rate is a better model:
-    the challenger approves <b>{{ m.model_value.same_bad_rate.extra_approvals_pp | pp }}</b> more applications at the scorecard's bad rate, and at the same approval rate its credit losses are
+    against a rebuilt scorecard applying the same rule, the challenger approves <b>{{ m.model_value.same_bad_rate.extra_approvals_pp | pp }}</b> more applications at the scorecard's bad rate
+    (95% interval {{ m.uncertainty.same_bad_rate_uplift_pp.low | pp }} to {{ m.uncertainty.same_bad_rate_uplift_pp.high | pp }}), and at the same approval rate its credit losses are
     <b>{{ (-m.model_value.same_approval_rate.credit_loss_change_pct) | pct(0) }}</b> lower. Approving applicants the lender rejected in the past cannot be evaluated from this data (they were never booked);
-    a below-cut-off test of about {{ m.test_design.below_cutoff_loans_needed | num }} loans (≈ {{ m.test_design.price_of_information | money }} of expected losses) would measure it.</li>
+    a below-cut-off test of about {{ m.test_design.below_cutoff_loans_needed | num }} loans (≈ {{ m.test_design.price_of_information | money }} of expected net losses, a floor if today's rejects are riskier
+    than the declined tail) would measure it; a pass would fund about {{ "%.1f" | format(m.test_pass.new_approvals_per_decline) }} new approvals per declined loan, roughly
+    +{{ m.test_pass.net_change_per_quarter | num }} loans a quarter.</li>
   <li><b>Route the grey zone to people, within capacity.</b> {{ m.three_tier.tiers[0].share | pct }} auto-approve, {{ m.three_tier.tiers[1].share | pct }} manual review, {{ m.three_tier.tiers[2].share | pct }} decline.
     The review tier adds {{ m.three_tier.uplift_vs_two_tier | money }} a quarter over a two-tier rule if reviewers catch {{ m.economics.review.bad_catch_rate | pct(0) }} of bad applicants, an assumption to be measured first.</li>
   <li><b>Guardrails hold.</b> Every input was checked to exist at decision time (a 14-day look-ahead leak in the source data was found and removed); approval rates are virtually equal by sex and the lowest age-band
-    ratio is {{ "%.2f" | format(fa.approval_rate_ratio.min()) }}; monitoring would track calibration and early delinquency, because in the COVID months the score distribution barely moved while the default rate halved.</li>
+    ratio is {{ "%.2f" | format(fa.approval_rate_ratio.min()) }}; monitoring would track calibration and early delinquency, because in the COVID months the challenger's score distribution barely moved while the default rate halved.</li>
 </ol>
 <div class="fig">{{ F.loss }}</div>
-<p class="note">Each line is one model. Moving left from 0.5 declines the riskiest applicants first; total cost (credit losses on approved bads + margin given up on declined goods) falls until roughly the break-even region,
+<p class="note">Each line is one model. The far right is today's policy, which approved every loan in this book (a 0.5 cut-off lands in the same place). Moving left declines the riskiest applicants first; total cost (credit losses on approved bads + margin given up on declined goods) falls until roughly the break-even region,
 then rises again as good customers are turned away. The dotted line is the product-level cost-based rule, which beats any single cut-off.</p>
 </section>
 
@@ -115,7 +119,7 @@ monitoring April to October 2020 (the COVID period, used to test the monitoring 
 <div class="tbl-wrap">{{ T.dq_rows }}</div>
 <div class="tbl-wrap">{{ T.dq_keys }}</div>
 <div class="fig">{{ F.monthly }}</div>
-<p class="note">The bad rate rose through 2019, then volume fell by about 85% and the bad rate halved from April 2020. Model building stops at March 2020; the later months test the monitoring plan.</p>
+<p class="note">The bad rate rose through 2019, then volume fell by about 86% and the bad rate halved from April 2020. Model building stops at March 2020; the later months test the monitoring plan.</p>
 <h3>Look-ahead leakage: the history snapshot was taken about 14 days after the decision</h3>
 <p>Dated fields in the snapshot tables run up to exactly 14 days past the decision date, never more. Recounting each client's applications from the previous-applications table shows when the pre-computed fields were measured:</p>
 <div class="fig">{{ F.offset }}</div>
@@ -153,7 +157,11 @@ Exclusion does not remove proxies: the 90 inputs still predict the attributes be
 <p><b>Champion:</b> {{ m.models.scorecard_variables }}-variable WOE logistic-regression scorecard (monotonic optimal binning; variables selected by information value with a correlation filter; every coefficient has the expected sign;
 scaled to points, 600 = odds of 50:1, +20 points doubles the odds). <b>Challenger:</b> LightGBM on all 90 inputs, early-stopped on the validation window. Both are Platt-calibrated on the validation window.</p>
 <div class="tbl-wrap">{{ T.models }}</div>
-<p>The challenger ranks better in every window (out-of-time Gini {{ "%.3f" | format(m.models.gini_test_challenger) }} vs {{ "%.3f" | format(m.models.gini_test_champion) }}). Its in-sample (train) Gini is much higher than its validation Gini,
+<p>The challenger ranks better in every window (out-of-time Gini {{ "%.3f" | format(m.models.gini_test_challenger) }} vs {{ "%.3f" | format(m.models.gini_test_champion) }}). Most of the gap comes from using
+more information rather than from the algorithm: LightGBM restricted to the scorecard's {{ m.models.scorecard_variables }} variables reaches {{ "%.3f" | format(m.models.gini_test_lgbm_on_scorecard_vars) }}, and giving missing values their
+own WOE does not help the scorecard ({{ "%.3f" | format(m.models.gini_test_scorecard_empirical_missing) }}).</p>
+<div class="tbl-wrap">{{ T.champion_checks }}</div>
+<p> Its in-sample (train) Gini is much higher than its validation Gini,
 the usual gap for boosted trees; the validation and out-of-time numbers agree, which is what matters. In money on the test window:</p>
 <div class="tbl-wrap">{{ T.biz }}</div>
 <div class="fig">{{ F.calibration }}</div>
@@ -218,10 +226,11 @@ Both models score the same booked loans, so swap-ins and swap-outs are both obse
 <h2>8 · Three-tier policy</h2>
 <p>Each application goes to the action with the highest expected value: approve, decline, or manual review (at {{ m.economics.review.cost_per_case | num }} CU per case, a reviewer is assumed to decline
 {{ m.economics.review.bad_catch_rate | pct(0) }} of bad applicants and {{ m.economics.review.good_decline_rate | pct(0) }} of good ones). Review only pays near the break-even and for larger loans; when demand exceeds
-capacity ({{ m.economics.review.capacity_share | pct(0) }} of applications) the most valuable reviews are kept. Uncapped demand would be {{ m.three_tier.uncapped_review_per_month | num }} reviews a month.</p>
+capacity ({{ m.economics.review.capacity_share | pct(0) }} of applications) the most valuable reviews are kept. Uncapped demand would be {{ m.three_tier.uncapped_review_per_month | num }} reviews a month.
+Volumes are booked-loan volumes; the real queue is set on through-the-door volume, which is larger by the share the lender rejects today.</p>
 <div class="fig">{{ F.tiers }}</div>
 <div class="tbl-wrap">{{ T.tiers }}</div>
-<p>Value of the review tier vs a two-tier rule, by reviewer hit rate (to be measured from review outcomes before scaling):</p>
+<p>Value of the review tier vs a two-tier rule, by reviewer catch rate (the share of bad applicants a reviewer declines; to be measured before scaling) and by the share of good applicants a reviewer declines:</p>
 <div class="tbl-wrap">{{ T.grid }}</div>
 </section>
 
@@ -239,38 +248,39 @@ so it stays excluded. These are screens that trigger a Compliance review, not le
 <section id="monitoring">
 <h2>10 · Calibration drift and monitoring</h2>
 <div class="tbl-wrap">{{ T.drift }}</div>
-<p class="note">Shifting only the PD level to the test quarter's base rate recovers most of the calibration gap: the miss is a level problem, not a ranking problem. The stress line shows the rule if every applicant's odds of default were 25% higher.</p>
+<p class="note">Refitting only the intercept on the test quarter (a hindsight check) brings the calibration ratio to 1.00 by construction, and the challenger's calibration slope on the test quarter is {{ "%.2f" | format(m.calibration_slope_test) }}: the miss is a level problem, not a ranking problem. The stress line shows the rule if every applicant's odds of default were 25% higher.</p>
 <div class="fig">{{ F.psi }}</div>
 <div class="fig">{{ F.calratio }}</div>
 <div class="fig">{{ F.gini }}</div>
 <div class="tbl-wrap">{{ T.csi }}</div>
-<p><b>What the COVID months teach.</b> The score distribution barely moved (PSI stayed below 0.10) while the bad rate halved and predicted PDs ran well above actual; Gini held. Score stability alone would have missed the
-change. Feature-level monitoring caught a data-capture break at once (the employment field's fill rate collapsed in April to May 2020). The plan therefore pairs input stability with calibration on mature vintages and an
+<p><b>What the COVID months teach.</b> The challenger's score distribution barely moved (PSI at most {{ "%.2f" | format(psi_ch_max) }}; the scorecard's reached {{ "%.2f" | format(psi_cp_max) }}, in step with the employment
+field's collapse) while the bad rate halved and predicted PDs ran well above actual; Gini held. Score stability alone would have missed the change. The drop is a step in April 2020 and then flat, which looks
+like a regime change rather than loans too recent to have defaulted, but with an undisclosed outcome horizon part of it may be immaturity: the back-test is illustrative. Feature-level monitoring caught a data-capture break at once (the employment field's fill rate collapsed in April to May 2020). The plan therefore pairs input stability with calibration on mature vintages and an
 early outcome (30+ days past due at month 3).</p>
 <div class="tbl-wrap"><table class="tbl rec"><thead><tr><th>Metric</th><th>Frequency</th><th>Investigate</th><th>Act</th><th>Owner</th></tr></thead><tbody>
 <tr><td>Score PSI vs development sample</td><td>monthly</td><td>≥ 0.10</td><td>≥ 0.25</td><td>Risk analytics</td></tr>
-<tr><td>Feature CSI (top inputs)</td><td>monthly</td><td>≥ 0.10</td><td>≥ 0.25</td><td>Risk analytics</td></tr>
+<tr><td>Feature CSI (12 most influential inputs, every categorical input, inputs already shifting)</td><td>monthly</td><td>≥ 0.10</td><td>≥ 0.25</td><td>Risk analytics</td></tr>
 <tr><td>Approval rate under the rule</td><td>weekly</td><td>± 3 pp vs plan</td><td>± 5 pp</td><td>Credit policy</td></tr>
 <tr><td>Early delinquency (30+ DPD at month 3) vs expected</td><td>monthly</td><td>+ 20% vs expected</td><td>+ 40%</td><td>Risk analytics</td></tr>
 <tr><td>Calibration ratio (mature vintages)</td><td>monthly</td><td>outside 0.8 to 1.25</td><td>two months in a row</td><td>Model validation</td></tr>
 <tr><td>Gini (mature vintages)</td><td>quarterly</td><td>5 points below validation</td><td>10 points below</td><td>Model validation</td></tr>
 <tr><td>Override rate and override bad rate</td><td>monthly</td><td>&gt; 5% of decisions</td><td>override bad rate above model-approved</td><td>Credit policy</td></tr>
-<tr><td>Review hit rate</td><td>monthly</td><td>25% below assumption</td><td>-</td><td>Underwriting operations</td></tr>
+<tr><td>Reviewer catch rate (1 − bads among review approvals ÷ bads expected in the reviewed pool)</td><td>monthly, as outcomes mature</td><td>below 30% (25% under the 40% assumption)</td><td>-</td><td>Underwriting operations</td></tr>
 </tbody></table></div>
 </section>
 
 <section id="recs">
 <h2>11 · Recommendations</h2>
 <div class="tbl-wrap"><table class="tbl rec"><thead><tr><th>For</th><th>Do</th><th>Expected impact</th><th>How to measure</th><th>Risk</th></tr></thead><tbody>
-<tr><td>Head of Credit Policy</td><td>Replace any fixed or 0.5 cut-off with the cost-based rule (break-even PDs {{ m.economics.breakeven_by_product.CAL | pct(0) }} cash, {{ m.economics.breakeven_by_product.REL | pct(0) }} revolving, {{ m.economics.breakeven_by_product.COL | pct(0) }} point-of-sale).</td>
+<tr><td>Head of Credit Policy</td><td>Adopt the cost-based rule as the cut-off policy once Finance confirms the margins (break-even PDs {{ m.economics.breakeven_by_product.CAL | pct(0) }} cash, {{ m.economics.breakeven_by_product.REL | pct(0) }} revolving, {{ m.economics.breakeven_by_product.COL | pct(0) }} point-of-sale).</td>
 <td>Decline {{ m.room[CH].declined_share | pct }} of today's approvals (bad rate {{ m.room[CH].tail_bad_rate | pct }}); {{ m.room[CH].net_gain | money }} a quarter.</td><td>Approval rate; bad rate of approved loans by vintage; net profit.</td><td>Margins are assumptions; Finance must sign off the cost matrix.</td></tr>
 <tr><td>Model Risk / Validation</td><td>Validate the challenger and run it as a champion/challenger test ({{ m.test_design.challenger_traffic_share | pct(0) }} of traffic, stratified by product).</td>
-<td>{{ m.model_value.same_bad_rate.extra_approvals_pp | pp }} approvals at the scorecard's bad rate, or {{ (-m.model_value.same_approval_rate.credit_loss_change_pct) | pct(0) }} lower credit losses at the same approval rate.</td>
-<td>About {{ m.test_design.champion_challenger_loans_per_arm | num }} approved loans per arm; 30+ DPD at month 3 for an early read; pre-registered decision rule.</td><td>Less transparent than a scorecard: SHAP reason codes must run in production.</td></tr>
-<tr><td>Credit Policy + Finance</td><td>Run a below-cut-off test: approve a random sample of applicants just below today's approval line, with capped amounts.</td>
-<td>Measures the bad rate of today's rejects, the number that decides whether approvals can rise at a flat bad rate.</td><td>Bad rate of test approvals vs the declined tail ({{ m.test_design.below_cutoff_loans_needed | num }} loans for an 80%-power read).</td><td>Expected cost ≈ {{ m.test_design.price_of_information | money }}.</td></tr>
-<tr><td>Underwriting operations</td><td>Route the grey zone to manual review within capacity; log every review outcome.</td><td>{{ m.three_tier.totals.reviews_per_month | num }} reviews a month; {{ m.three_tier.uplift_vs_two_tier | money }} a quarter if reviewers catch {{ m.economics.review.bad_catch_rate | pct(0) }} of bads.</td>
-<td>Review hit rate, cost per case, turnaround.</td><td>Value depends on the reviewer hit rate, not yet measured.</td></tr>
+<td>{{ m.model_value.same_bad_rate.extra_approvals_pp | pp }} approvals versus a rebuilt scorecard applying the same rule, at its bad rate, or {{ (-m.model_value.same_approval_rate.credit_loss_change_pct) | pct(0) }} lower credit losses at the same approval rate.</td>
+<td>{{ m.test_design.champion_challenger_loans_per_arm | num }} approved loans per arm; 30+ DPD at month 3 for an early read; pre-registered decision rule.</td><td>Less transparent than a scorecard: SHAP reason codes must run in production.</td></tr>
+<tr><td>Credit Policy + Finance</td><td>Run a below-cut-off test: approve a random sample of applicants just below today's approval line (applicants the current policy rejects), with capped amounts.</td>
+<td>Measures the bad rate of today's rejects, the number that decides whether approvals can rise at a flat bad rate; a pass funds about +{{ m.test_pass.net_change_per_quarter | num }} loans a quarter.</td><td>Bad rate of test approvals vs the declined tail ({{ m.test_design.below_cutoff_loans_needed | num }} loans for an 80%-power read).</td><td>Expected net cost ≈ {{ m.test_design.price_of_information | money }}, a floor if today's rejects are riskier than the declined tail.</td></tr>
+<tr><td>Underwriting operations</td><td>Route the grey zone to manual review within capacity; log every review outcome.</td><td>{{ m.three_tier.totals.reviews_per_month | num }} reviews a month on booked-loan volume (reset on through-the-door volume); {{ m.three_tier.uplift_vs_two_tier | money }} a quarter if reviewers catch {{ m.economics.review.bad_catch_rate | pct(0) }} of bads.</td>
+<td>Reviewer catch rate, cost per case, turnaround.</td><td>Value depends on the reviewer catch rate, not yet measured.</td></tr>
 <tr><td>Compliance</td><td>Approve the excluded-attribute list and the decline-reason library; review age-band and sex calibration gaps.</td><td>Documented fair-lending position before go-live.</td><td>Approval-rate ratio and calibration by group, quarterly.</td><td>Inputs still carry age information (proxy AUC {{ "%.2f" | format(m.leakage.proxy_auc_age50) }}).</td></tr>
 <tr><td>Risk analytics</td><td>Monthly monitoring pack with the triggers above, including early delinquency.</td><td>Detects population and outcome shifts within one to three months.</td><td>Alerts raised and actioned.</td><td>Outcome-based metrics lag; early delinquency shortens the lag.</td></tr>
 </tbody></table></div>

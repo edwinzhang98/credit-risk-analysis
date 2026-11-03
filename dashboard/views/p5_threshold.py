@@ -39,21 +39,21 @@ cut = c2.slider("Explore a single cut-off: approve if predicted PD is below", 0.
 
 single = evaluate_policy(p < cut, y, g, l, T.loan_amount.to_numpy())
 rule = evaluate_policy(approve_ev_positive(p, g, l), y, g, l, T.loan_amount.to_numpy())
-half = evaluate_policy(p < 0.5, y, g, l, T.loan_amount.to_numpy())
+today = evaluate_policy(np.ones(len(p), bool), y, g, l, T.loan_amount.to_numpy())  # today's policy: every booked loan approved
 
 def col(res):
     return [f"{res['approval_rate']:.1%}", f"{res['bad_rate_approved']:.2%}", f"{res['capture_rate']:.1%}", f"{res['false_positive_rate']:.1%}",
             charts.fmt_money(res["credit_loss"]), charts.fmt_money(res["forgone_margin"]), charts.fmt_money(res["total_cost"]), charts.fmt_money(res["net_profit"]),
-            f"{res['total_cost'] / half['total_cost'] - 1:+.0%}"]
+            f"{res['total_cost'] / today['total_cost'] - 1:+.0%}"]
 
 table = pd.DataFrame({
     "Metric": ["Approval rate", "Bad rate of approved loans", "Defaults kept off the book (capture)", "Good customers declined", "Credit losses",
-               "Margin forgone", "Total cost of wrong decisions", "Net profit", "Total cost vs the 0.5 cut-off"],
-    "Default 0.5 cut-off": col(half), f"Your cut-off ({cut:.1%})": col(single), "Cost-based rule (product break-evens)": col(rule),
+               "Margin forgone", "Total cost of wrong decisions", "Net profit", "Total cost vs today's policy"],
+    "Today's policy (approve every booked loan)": col(today), f"Your cut-off ({cut:.1%})": col(single), "Cost-based rule (product break-evens)": col(rule),
 })
 st.dataframe(table, hide_index=True, use_container_width=True)
 
-fig = charts.loss_curve(curves, rule_points={model: rule["total_cost"]},
+fig = charts.loss_curve(curves, rule_points={model: rule["total_cost"]}, baseline_cost=today["total_cost"],
                         title=f"With these assumptions the cheapest single cut-off is PD {best.threshold:.1%} ({model.split(' (')[0].lower()})",
                         subtitle="Credit losses + forgone margin (million CU) by PD cut-off, out-of-time test Jan to Mar 2020; vertical line = your cut-off")
 fig.add_vline(x=cut, line=dict(color=charts.INK_2, width=1))
@@ -64,8 +64,8 @@ how_to_read("""
 loan that is never recovered (exposure at default × loss given default, about 60% of the amount in the base case). Declining someone who would
 have repaid costs the profit that loan would have made (its margin). The total cost of wrong decisions adds the two over all applications.
 
-**Why the cut-off is not 0.5.** A predicted PD of 0.5 means a coin flip; very few applicants are that risky, so a 0.5 cut-off approves almost
-everyone and pays for the whole risky tail. Because a bad loan costs several times what a good loan earns, it pays to decline long before 50%.
+**Why the cut-off sits far below 50%.** Today's policy approved every loan in this book, and a 0.5 cut-off would do almost the same: a PD of
+0.5 is a coin flip and very few applicants are that risky, so it pays for the whole risky tail. Because a bad loan costs several times what a good loan earns, it pays to decline long before 50%.
 The break-even PD is where the expected margin of approving exactly equals the expected loss.
 
 **Try this.** Lower the point-of-sale margin: its break-even falls and the rule declines more point-of-sale loans. Raise loss given default: every

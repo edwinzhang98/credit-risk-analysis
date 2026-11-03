@@ -63,7 +63,7 @@ with tab1:
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
     sc_reasons = [r[f"sc_reason_{i}"] for i in range(1, 5)]
     st.caption("Champion scorecard reasons (largest points lost vs the best bin of each variable): " + "; ".join(sc_reasons))
-    st.caption(f"Actual outcome (known only in hindsight): {'defaulted' if r.target == 1 else 'repaid'}.")
+    st.caption(f"Actual outcome (known only in hindsight): {'defaulted' if r.target == 1 else 'did not default'}.")
 
 with tab2:
     met = load("model_metrics")
@@ -115,7 +115,10 @@ with tab3:
     st.dataframe(coefs[["label", "feature", "iv", "coefficient"]].round(3), hide_index=True, use_container_width=True)
     with st.expander("Scorecard points table (bins and points per variable)"):
         pts = load("scorecard_points")
-        pts = pts.assign(Variable=pts.Variable.map(LABELS))[["Variable", "Bin", "Count", "Event rate", "WoE", "Points"]]
+        cols = ["Variable", "Bin", "Count", "Event rate", "WoE"] + (["WoE used in score"] if "WoE used in score" in pts else []) + ["Points"]
+        pts = pts.assign(Variable=pts.Variable.map(LABELS))[cols]
+        st.caption("Missing values are scored with a neutral WOE of 0 whatever their observed default rate, so every Missing bin earns the same points. "
+                   "A decline reason that comes from a missing value reads \"(no record)\" for history fields and \"(not provided)\" for application-form fields.")
         st.dataframe(pts.round(3), hide_index=True, use_container_width=True, height=420)
 
 how_to_read("""
@@ -123,7 +126,7 @@ how_to_read("""
 predicted risk up (orange) or down (blue), measured with SHAP values in "log-odds" (the scale the model adds things up on). The table lists the
 **principal reasons**: the up to four inputs that raised the risk the most, in plain English, next to this applicant's value and the typical value
 among approved applicants. This is the format of an adverse-action notice. The scorecard gives its own reasons: the variables where the applicant
-scored furthest below the best possible points.
+scored furthest below the best possible points (a reason from a missing value says "no record" or "not provided").
 
 **How good is the model.** *Gini* measures how well a model ranks applicants (0 = coin flip, 1 = perfect). It is useful for comparing models,
 but the decision is made on the money table. *Calibration* compares predicted and actual default rates: the points fall above the diagonal

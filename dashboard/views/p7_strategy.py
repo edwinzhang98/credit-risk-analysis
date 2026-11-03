@@ -67,7 +67,7 @@ with tab2:
 with tab3:
     mon = load("monitoring_monthly")
     c1, c2 = st.columns(2)
-    c1.plotly_chart(charts.monitor_lines(mon, "psi", "Score PSI stayed below the investigate line, even through COVID", "PSI of each model's PD vs the training window by month",
+    c1.plotly_chart(charts.monitor_lines(mon, "psi", "Challenger PSI stayed below 0.10; the scorecard's crossed it from May 2020", "PSI of each model's PD vs the training window by month",
                                          fmt=".3f", bands=((0.10, "investigate", charts.STATUS["warning"]), (0.25, "act", charts.STATUS["critical"]))), use_container_width=True)
     c2.plotly_chart(charts.monitor_lines(mon[mon.decision_month >= 201911], "gini", "Rank-ordering held up through the shock", "Gini by decision month, out-of-sample months only", fmt=".3f"),
                     use_container_width=True)
@@ -82,29 +82,29 @@ with tab3:
 | Metric | Frequency | Investigate | Act | Owner |
 |---|---|---|---|---|
 | Score PSI vs development sample | monthly | ≥ 0.10 | ≥ 0.25 | Risk analytics |
-| Feature CSI (top inputs) | monthly | ≥ 0.10 | ≥ 0.25 | Risk analytics |
+| Feature CSI (12 most influential inputs, every categorical input, inputs already shifting) | monthly | ≥ 0.10 | ≥ 0.25 | Risk analytics |
 | Approval rate under the rule | weekly | ± 3 pp vs plan | ± 5 pp | Credit policy |
 | Calibration ratio (mature vintages) | monthly | outside 0.8 to 1.25 | two months in a row | Model validation |
 | Gini (mature vintages) | quarterly | 5 points below validation | 10 points below | Model validation |
 | Override rate and override bad rate | monthly | > 5% of decisions | override bad rate above model-approved | Credit policy |
-| Review hit rate | monthly | 25% below assumption | - | Underwriting operations |
+| Reviewer catch rate (1 − bads among review approvals ÷ bads expected in the reviewed pool) | monthly, as outcomes mature | below 30% (25% under the 40% assumption) | - | Underwriting operations |
 """)
 
 with tab4:
     mv, room = m["model_value"], m["room"][CH]
     rec = pd.DataFrame([
-        {"For": "Head of Credit Policy", "Do": "Replace any fixed or 0.5 cut-off with the cost-based rule: product break-evens of 25% (cash), 14% (cards), 8% (point-of-sale)",
-         "Expected impact": f"decline {room['declined_share']:.1%} of today's approvals (bad rate {room['tail_bad_rate']:.0%}); total cost of wrong decisions {-m['loss_curve'][CH]['rule_cost_saving_vs_default']:.0%} vs 0.5",
+        {"For": "Head of Credit Policy", "Do": "Adopt the cost-based rule as the cut-off policy, once Finance confirms the margins: product break-evens of 25% (cash), 14% (cards), 8% (point-of-sale)",
+         "Expected impact": f"decline {room['declined_share']:.1%} of today's approvals (bad rate {room['tail_bad_rate']:.0%}); total cost of wrong decisions {m['vs_today'][CH]['total_cost_change']:+.0%} vs today's policy",
          "Measure": "approval rate, bad rate of approved loans by vintage, net profit", "Risk": "margins are assumptions; Finance must sign off the cost matrix"},
         {"For": "Model Risk / Validation", "Do": "Validate the challenger and run it as a champion/challenger test (20% of traffic, stratified by product)",
-         "Expected impact": f"{100 * mv['same_bad_rate']['extra_approvals_pp']:+.1f} pp approvals at the scorecard's bad rate",
+         "Expected impact": f"{100 * mv['same_bad_rate']['extra_approvals_pp']:+.1f} pp approvals versus a rebuilt scorecard applying the same rule, at its bad rate",
          "Measure": "30+ days past due at month 3, then full default; pre-registered decision rule", "Risk": "less transparent than the scorecard; requires SHAP reason codes in production"},
-        {"For": "Credit Policy + Finance", "Do": "Run a below-cut-off test: approve a random 10% of the declined band with capped amounts",
-         "Expected impact": "measures the bad rate of today's rejects, the number that decides whether approvals can rise at a flat bad rate",
-         "Measure": "bad rate of test approvals vs the declined tail", "Risk": f"about {m['test_design']['below_cutoff_loans_needed']:,} test loans; expected cost ≈ {charts.fmt_money(m['test_design']['price_of_information'])}"},
+        {"For": "Credit Policy + Finance", "Do": "Run a below-cut-off test: approve a random sample of applicants just below today's approval line (applicants the current policy rejects), with capped amounts",
+         "Expected impact": f"measures the bad rate of today's rejects, the number that decides whether approvals can rise at a flat bad rate; a pass funds about {m['test_pass']['net_change_per_quarter']:+,.0f} loans a quarter",
+         "Measure": "bad rate of test approvals vs the declined tail", "Risk": f"about {m['test_design']['below_cutoff_loans_needed']:,} test loans; expected net cost ≈ {charts.fmt_money(m['test_design']['price_of_information'])}, a floor if today's rejects are riskier than the declined tail"},
         {"For": "Underwriting operations", "Do": "Route the grey zone to manual review within capacity; log review outcomes",
-         "Expected impact": f"{m['three_tier']['totals']['reviews_per_month']:,.0f} reviews a month; {charts.fmt_money(m['three_tier']['uplift_vs_two_tier'])} a quarter if reviewers catch 40% of bads",
-         "Measure": "review hit rate, review cost per case, turnaround time", "Risk": "value depends on the reviewer hit rate, which is not yet measured"},
+         "Expected impact": f"{m['three_tier']['totals']['reviews_per_month']:,.0f} reviews a month on booked-loan volume (reset on through-the-door volume); {charts.fmt_money(m['three_tier']['uplift_vs_two_tier'])} a quarter if reviewers catch 40% of bads",
+         "Measure": "reviewer catch rate, review cost per case, turnaround time", "Risk": "value depends on the reviewer catch rate, which is not yet measured"},
         {"For": "Compliance", "Do": "Approve the excluded-attribute list and the adverse-action reason library; review age-band outcomes",
          "Expected impact": "documented fair-lending position before go-live", "Measure": "approval-rate ratio by sex and age band each quarter",
          "Risk": "inputs still carry age information (proxy AUC 0.84)"},
@@ -126,8 +126,10 @@ default more often in this book, and the calibration ratio shows whether the mod
 
 **Monitoring.** PSI (population stability index) compares this month's score distribution with the one the model was built on; CSI does the same
 for one input. They react as soon as applicants change, before any defaults are observed. Gini and calibration need outcomes, so they lag. The
-COVID months are the lesson: score PSI stayed below 0.10, yet the bad rate halved and predicted PDs ran well above actual. Only calibration showed
-it, months later, while feature CSI caught a data-capture break (the employment field) at once. Hence the plan tracks an early outcome (30+ days
+COVID months are the lesson: the challenger's score PSI stayed below 0.10 (the scorecard's reached about 0.15, driven by the employment field's
+collapse), yet the bad rate halved and predicted PDs ran well above actual. Calibration showed it, months later, while feature CSI caught the
+data-capture break (the employment field) at once. Part of the drop may also be loans too recent to have defaulted yet (the outcome horizon is not
+disclosed); the back-test is illustrative. Hence the plan tracks an early outcome (30+ days
 past due at month 3) next to PSI, and treats "PSI fine, calibration off, Gini fine" as a level problem: re-check cut-offs and calibration, do not
 rebuild the model.
 """)

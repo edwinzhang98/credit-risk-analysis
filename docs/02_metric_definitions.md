@@ -22,11 +22,14 @@ A *policy* is a rule that maps each application to approve / review / decline, e
 | **Decline rate** | 1 − approval rate (two-tier); declined ÷ applications (three-tier) | |
 | **Review rate** | routed to manual review ÷ applications | Three-tier policy only. |
 | **Bad rate (approved book)** | bads among approved ÷ approved | The number the business means by "坏账率". Count-based. |
+| **Bad rate by amount** | loan amount of approved bads ÷ loan amount approved | Shown next to the count-based rate where products differ in size (cash loans are larger and default more often, so their amount-based rate is higher). |
 | **Bad rate (population)** | bads ÷ applications | Base rate; 3.14% over all 1.53M cases. |
 | **Capture rate** | bads declined ÷ all bads | Share of defaults the policy keeps off the book (recall on bads). |
 | **False positive rate (good-decline rate)** | goods declined ÷ all goods | Share of good customers turned away. |
 | **Decline precision** | bads declined ÷ declined | Bad rate inside the declined group. |
-| **Review hit rate** | bads among reviewed ÷ reviewed | |
+| **Review hit rate** | bads among reviewed ÷ reviewed | The bad rate of the review queue (12.2% in the base case). |
+| **Reviewer catch rate** | share of the bad applicants in review that the reviewer declines | An assumption (40%) until measured. Declined applicants have no outcome, so it is estimated as 1 − bads among review approvals ÷ bads expected in the reviewed pool (from calibrated PDs). |
+| **Bads stopped per review** | review hit rate × reviewer catch rate | 4.9% in the base case (544 of 11,134 reviews in the test quarter). |
 
 ## Money metrics (cost matrix)
 
@@ -62,7 +65,7 @@ Only approved loans have outcomes, so the bad rate of applicants we would *newly
 | Metric | Definition |
 |---|---|
 | **PD** | Model-predicted probability of default. Both models are recalibrated on the validation window (Platt scaling) so that PDs are comparable and usable in the break-even rule. |
-| **Scorecard points** | points = 600 + 20/ln(2) · ln(odds ÷ 50), where odds = (1 − PD) ÷ PD (good:bad). Higher points = lower risk; +20 points doubles the good:bad odds (PDO = 20); 600 points = odds of 50:1 (PD ≈ 2%). |
+| **Scorecard points** | points = 600 + 20/ln(2) · ln(odds ÷ 50), where odds = (1 − PD) ÷ PD (good:bad) from the scorecard's own, pre-calibration PD. Higher points = lower risk; +20 points doubles the good:bad odds (PDO = 20); 600 points = raw odds of 50:1, which after calibration on the validation window is a PD of about 2.4%. Cut-offs in points are translated from the calibrated break-even PDs (notebook 04). Points per variable add up to the score; missing values score as a neutral WOE of 0. |
 | **AUC / Gini** | Probability a random bad scores riskier than a random good; Gini = 2·AUC − 1. |
 | **KS** | Max distance between the cumulative score distributions of bads and goods. |
 | **Calibration-in-the-large** | mean predicted PD ÷ observed bad rate (1.00 = perfect). |

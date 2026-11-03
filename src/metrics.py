@@ -99,6 +99,16 @@ def psi(ref, cur, edges=None, n_bins: int = 10) -> float:
     return float(psi_table(ref, cur, edges, n_bins)["psi"].sum())
 
 
+def psi_categorical(ref, cur) -> float:
+    """PSI of a categorical input from category shares; missing values are their own category."""
+    e = pd.Series(ref, dtype=object).fillna("missing").astype(str).value_counts(normalize=True)
+    a = pd.Series(cur, dtype=object).fillna("missing").astype(str).value_counts(normalize=True)
+    cats = e.index.union(a.index)
+    ee = np.clip(e.reindex(cats, fill_value=0).to_numpy(float), EPS, None)
+    aa = np.clip(a.reindex(cats, fill_value=0).to_numpy(float), EPS, None)
+    return float(np.sum((aa - ee) * np.log(aa / ee)))
+
+
 # --------------------------------------------------------------------------------------------------------------------
 # Univariate screening (Information Value), used in the audit and feature inclusion log
 # --------------------------------------------------------------------------------------------------------------------

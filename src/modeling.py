@@ -179,32 +179,72 @@ def fit_scorecard(X_tr: pd.DataFrame, y_tr, numeric: list[str], categorical: lis
 
     table = sc.table(style="detailed")
     table = table[table["Count"] > 0].copy() if "Count" in table else table
-    max_points = table.groupby("Variable")["Points"].max().to_dict()
-    return ScorecardResult(sc, selected, summary, log, table, max_points)
+    # Missing and special values are scored with WOE 0 (optbinning's default), whatever their empirical WOE in the table
+    neutral = table["Bin"].astype(str).isin(["Special", "Missing"])
+    table["WoE used in score"] = np.where(neutral, 0.0, table["WoE"].astype(float))
+    coef = dict(zip(selected, sc.estimator_.coef_[0]))
+    table["Points"] = [_points_from_woe(w, coef[v], sc.estimator_.intercept_[0], len(selected)) for v, w in zip(table["Variable"], table["WoE used in score"])]
+    res = ScorecardResult(sc, selected, summary, log, table, {})
+    res.max_points = scorecard_max_points(res)
+    return res
+
+
+SCORE_PDO, SCORE_ODDS, SCORE_BASE = 20, 50, 600
+SCORE_FACTOR = SCORE_PDO / np.log(2)
+SCORE_OFFSET = SCORE_BASE - SCORE_FACTOR * np.log(SCORE_ODDS)
+
+
+def _points_from_woe(woe, beta, intercept, n_vars):
+    """Points of one variable for a given WOE, exactly as the scorecard adds them up (score = sum over variables)."""
+    return SCORE_OFFSET / n_vars - SCORE_FACTOR * (beta * woe + intercept / n_vars)
+
+
+def scorecard_points(res: ScorecardResult, X: pd.DataFrame) -> pd.DataFrame:
+    """Points per variable for each applicant. Missing and special values score as WOE 0 (optbinning's default), as in the score."""
+    sc = res.scorecard
+    woe = sc.binning_process_.transform(X[res.selected], metric="woe")
+    beta = sc.estimator_.coef_[0]
+    pts = _points_from_woe(woe.to_numpy(float), beta, sc.estimator_.intercept_[0], len(res.selected))
+    return pd.DataFrame(pts, index=X.index, columns=res.selected)
+
+
+def scorecard_max_points(res: ScorecardResult) -> dict:
+    """Best achievable points per variable: over the variable's populated bins and the neutral WOE 0 (missing / special)."""
+    sc = res.scorecard
+    beta = dict(zip(res.selected, sc.estimator_.coef_[0]))
+    out = {}
+    for var in res.selected:
+        t = sc.binning_process_.get_binned_variable(var).binning_table.build()
+        t = t[(t.index != "Totals") & (t["Count"] > 0) & (~t["Bin"].astype(str).isin(["Special", "Missing"]))]
+        woes = np.append(t["WoE"].astype(float).to_numpy(), 0.0)
+        out[var] = float(np.max(_points_from_woe(woes, beta[var], sc.estimator_.intercept_[0], len(res.selected))))
+    return out
+
+
+HISTORY_GROUPS = {"Repayment history", "Previous applications", "Credit bureau"}
+
+
+def _missing_suffix(feature: str) -> str:
+    """How a reason reads when the value is missing: history fields have no record; form fields were not provided."""
+    from src.features import GROUPS
+
+    return " (no record)" if GROUPS.get(feature) in HISTORY_GROUPS else " (not provided)"
 
 
 def scorecard_reason_codes(res: ScorecardResult, X: pd.DataFrame, labels: dict, top_k: int = 4) -> pd.DataFrame:
-    """Adverse-action style reasons: the variables where the applicant scored furthest below the maximum points."""
-    bp = res.scorecard.binning_process_
-    pts = pd.DataFrame(index=X.index)
-    coefs = dict(zip(res.selected, res.scorecard.estimator_.coef_[0]))
-    # Points per variable for each applicant: look up the applicant's bin points from the table via WOE.
-    woe = bp.transform(X[res.selected], metric="woe")
-    for var in res.selected:
-        t = res.points_table[res.points_table["Variable"] == var][["WoE", "Points"]].drop_duplicates("WoE")
-        mapping = dict(zip(np.round(t["WoE"].astype(float), 10), t["Points"].astype(float)))
-        pts[var] = np.round(woe[var].astype(float), 10).map(mapping)
-        missing = pts[var].isna()
-        if missing.any():  # unseen WOE value (should not happen); fall back to the linear formula
-            factor = 20 / np.log(2)
-            pts.loc[missing, var] = -coefs[var] * woe.loc[missing, var] * factor
-    shortfall = pd.DataFrame({v: res.max_points[v] - pts[v] for v in res.selected}, index=X.index)
-    order = np.argsort(-shortfall.to_numpy(), axis=1)[:, :top_k]
+    """Adverse-action style reasons: the variables where the applicant scored furthest below the best achievable points."""
+    pts = scorecard_points(res, X)
+    max_pts = scorecard_max_points(res)
+    shortfall = pd.DataFrame({v: max_pts[v] - pts[v] for v in res.selected}, index=X.index)
+    order = np.argsort(-shortfall.to_numpy(), axis=1, kind="mergesort")[:, :top_k]
     names = np.array(res.selected)
     out = pd.DataFrame(index=X.index)
+    missing = X[res.selected].isna().to_numpy()
+    rows = np.arange(len(X))
     for i in range(top_k):
-        out[f"reason_{i + 1}"] = [labels.get(n, n) for n in names[order[:, i]]]
-        out[f"reason_{i + 1}_points_lost"] = shortfall.to_numpy()[np.arange(len(X)), order[:, i]]
+        col = order[:, i]
+        out[f"reason_{i + 1}"] = [labels.get(n, n) + (_missing_suffix(n) if miss else "") for n, miss in zip(names[col], missing[rows, col])]
+        out[f"reason_{i + 1}_points_lost"] = shortfall.to_numpy()[rows, col]
     return out
 
 

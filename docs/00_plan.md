@@ -5,7 +5,7 @@
 ## Direction and why
 
 Direction **A: credit default / cut-off strategy** on **Home Credit – Credit Risk Model Stability (Kaggle 2024)**.
-Reasons: credit-risk JDs (Credit Risk Analyst, Risk Data Analyst, Decision Science) outnumber fraud JDs; it is the most recent public, real, application-level lending dataset (decisions from 2019-01 to 2020-10); its multi-table layout (application, bureau, previous applications, persons) mirrors a real lending warehouse. The 2018 Home Credit dataset stays as a fallback only.
+Reasons: the stakeholder's question is a credit-policy one (cut-off, swap set, approvals vs bad rate); this is the most recent public, real, application-level lending dataset (decisions from 2019-01 to 2020-10); and its multi-table layout (application, bureau, previous applications, persons) mirrors a real lending warehouse. The 2018 Home Credit dataset stays as a fallback only.
 
 ## Data (read in place with DuckDB, never committed)
 
@@ -23,8 +23,8 @@ Tables used, added one at a time (stop adding when the signal is enough):
 ## Early findings that shape the plan
 
 1. **Only booked loans have outcomes** (all 1.53M rows have a default flag), so every approval rate in this project is a *simulated* rate on the historically approved population. Applicants rejected by the old policy are invisible; that is the reject-inference problem, and it is stated as limitation #1 together with the test that would close it.
-2. **Look-ahead leak in the snapshot fields.** Date fields run up to 14 days *after* the decision date, and the pre-computed history counts match a window shifted +14 days (96.7% exact match) better than the point-in-time window (90.0%). Cases whose "last application" happened after the decision default 50% more often (5.0% vs 3.2%). Plan: rebuild history features point-in-time from the previous-applications table, drop short-window and "current status" snapshot fields, and measure how much the leak would have inflated results.
-3. **Time drift.** Bad rate climbs from about 2.7% (H1 2019) to 4.7% (Feb 2020), then volume falls about 85% and bad rate drops to about 2.2% after April 2020 (COVID period). This drives the split design and gives the monitoring section a real drift episode.
+2. **Look-ahead leak in the snapshot fields.** Date fields run up to 14 days *after* the decision date, and the pre-computed history counts match a window shifted +14 days (96.7% exact match) better than the point-in-time window (90.1%). Cases whose "last application" happened after the decision default 50% more often (5.0% vs 3.2%). Plan: rebuild history features point-in-time from the previous-applications table, drop short-window and "current status" snapshot fields, and measure how much the leak would have inflated results.
+3. **Time drift.** Bad rate climbs from about 2.7% (H1 2019) to 4.7% (Feb 2020), then volume falls about 86% and bad rate drops to about 2.2% after April 2020 (COVID period). This drives the split design and gives the monitoring section a real drift episode.
 
 ## Analysis outline
 

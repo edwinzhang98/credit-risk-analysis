@@ -186,7 +186,7 @@ def snapshot_offset_chart(off: pd.DataFrame) -> go.Figure:
 # Cut-off and strategy
 # ---------------------------------------------------------------------------------------------------------------------
 def loss_curve(curves: dict, rule_points: dict | None = None, default_cut: float = 0.5, height: int = 470, title: str | None = None,
-               subtitle: str | None = None, headline: str | None = None) -> go.Figure:
+               subtitle: str | None = None, headline: str | None = None, baseline_cost: float | None = None) -> go.Figure:
     """Total decision cost (credit losses + forgone margin) vs a single PD cut-off, one line per model.
 
     curves: {model_name: DataFrame from strategy.curve_by_threshold}; rule_points: {model_name: total cost of the product-level cost rule}.
@@ -217,16 +217,19 @@ def loss_curve(curves: dict, rule_points: dict | None = None, default_cut: float
     c0 = curves[head]
     d0 = c0.iloc[(c0.threshold - default_cut).abs().argmin()]
     b0 = best[head]
-    fig.add_annotation(x=d0.threshold, y=d0.total_cost / 1e6, text="0.5 cut-off<br>(approves almost all)", showarrow=True, arrowhead=0, ax=-60, ay=-40,
+    far_right = "today's policy ≈ 0.5 cut-off<br>(approves almost all)" if baseline_cost is not None else "0.5 cut-off<br>(approves almost all)"
+    fig.add_annotation(x=d0.threshold, y=d0.total_cost / 1e6, text=far_right, showarrow=True, arrowhead=0, ax=-70, ay=-40,
                        font=dict(size=11, color=INK_2), arrowcolor=AXIS)
     fig.add_annotation(x=b0.threshold, y=b0.total_cost / 1e6, text=f"cheapest single<br>cut-off: PD {b0.threshold:.1%}", showarrow=True, arrowhead=0, ax=45, ay=55,
                        font=dict(size=11, color=INK_2), arrowcolor=AXIS)
+    base = baseline_cost if baseline_cost is not None else d0.total_cost
+    against = "today's policy (approve every booked loan)" if baseline_cost is not None else "the default 0.5 cut-off"
     if rule_points and head in rule_points:
-        saving, what = 1 - rule_points[head] / d0.total_cost, "The cost-based rule"
+        saving, what = 1 - rule_points[head] / base, "The cost-based rule"
     else:
-        saving, what = 1 - b0.total_cost / d0.total_cost, "The cheapest single cut-off"
+        saving, what = 1 - b0.total_cost / base, "The cheapest single cut-off"
     y_top = 1.7 * max(float(c.iloc[(c.threshold - default_cut).abs().argmin()].total_cost) for c in curves.values()) / 1e6
-    base_layout(fig, title or f"{what} cuts the cost of wrong decisions by {saving:.0%} versus the default 0.5 cut-off",
+    base_layout(fig, title or f"{what} cuts the cost of wrong decisions by {saving:.0%} versus {against}",
                 subtitle or "Credit losses on approved bads + margin forgone on declined goods (million CU) by PD cut-off, out-of-time test Jan to Mar 2020",
                 height=height)
     fig.update_xaxes(title="PD cut-off (approve if predicted PD is below)", tickformat=".0%", range=[0, 0.505])

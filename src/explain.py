@@ -11,10 +11,14 @@ import pandas as pd
 
 def shap_values(booster, X: pd.DataFrame) -> tuple[pd.DataFrame, float]:
     """SHAP contributions in log-odds for a LightGBM booster; returns (frame aligned to X, expected log-odds)."""
+    import warnings
+
     import shap
 
     explainer = shap.TreeExplainer(booster)
-    sv = explainer.shap_values(X)
+    with warnings.catch_warnings():  # shap notes a change in its LightGBM output format; the shape is handled below
+        warnings.filterwarnings("ignore", message="LightGBM binary classifier with TreeExplainer shap values output has changed")
+        sv = explainer.shap_values(X)
     if isinstance(sv, list):  # older shap returns [class0, class1]
         sv = sv[1]
     base = explainer.expected_value

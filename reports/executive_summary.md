@@ -1,0 +1,37 @@
+# Executive summary: is there room on the cut-off?
+
+*For the Head of Credit Policy. Out-of-time test quarter: decisions January to March 2020, 222,681 booked loans, 4.41% defaulted. Money is in the dataset's currency units (CU). The current scorecard is the champion, a stand-in we rebuilt because the lender's incumbent model is not in the data; the new model is the LightGBM challenger.*
+
+**Answer in one sentence.** There is room to tighten and none we can prove to loosen: a cut-off set from what a wrong decision costs, run on a better model, lowers the approved book's bad rate from 4.41% to 3.17% and adds 92.3M CU a quarter, while approving people we reject today needs a 589-loan test, because their outcomes were never observed.
+
+## Key figures
+
+| Metric (test quarter) | Value | What it means |
+|---|---|---|
+| Approvals the cost-based rule would decline | 9.3% (20,627 loans, 1,062.4M CU) | Their bad rate was 16.6%, almost four times the book's 4.41% |
+| Bad rate of the approved book | 4.41% to 3.17% | Lower than today's book, as the business required |
+| Credit losses | 35% lower (391.4M to 254.1M CU) | Total cost of wrong decisions 23% lower than at the default 0.5 cut-off |
+| Net profit | +92.3M CU a quarter | 139.2M CU of losses avoided less 46.9M CU of margin given up |
+| New model versus current scorecard | +3.3 pp approvals at the same bad rate (about 2,458 loans a month), or 22% lower credit losses at the same approval rate | A better model creates room the scorecard cannot |
+| Price of knowing whether approvals can rise | 589 test loans, about 2.6M CU | Expected net loss on a below-cut-off test of today's rejects |
+
+![Total cost of wrong decisions by cut-off, out-of-time test January to March 2020](figures/loss_curve.png)
+
+*Credit losses on approved loans that default plus margin given up on declined good customers, by cut-off. The 0.5 cut-off approves almost everyone; the cost-based rule (dotted line) uses a break-even per product and beats any single cut-off.*
+
+## Three findings
+
+1. **Set the cut-off from costs, not from 0.5.** A bad loan costs about 60% of its amount; a wrongly declined good customer costs the product's margin (20% cash, 10% revolving, 5% point-of-sale). One rule, approve when expected profit is positive, therefore gives three cut-offs: an estimated chance of default below 25.0%, 14.3% and 7.7%. On the current scorecard it declines 7.5% of today's approvals (bad rate 14.9%), worth 45.9M CU a quarter; on the new model, 9.3% (bad rate 16.6%), worth 92.3M CU.
+2. **The new model ranks applicants more accurately, and that is where the room comes from.** At the scorecard's bad rate it approves 95.8% instead of 92.5%; at the scorecard's approval rate its credit losses are 22% lower. Under the recommended rule, 8,708 loans (576.0M CU) move from approved to declined (swap-outs) and defaulted at 14.7%; 4,776 loans (150.4M CU) move the other way (swap-ins) and defaulted at 7.1%. A manual-review tier for the grey zone (5.0% of applications, 3,711 cases a month) adds 11.8M CU a quarter if reviewers catch 40% of bad applicants, still to be measured.
+3. **Loosening cannot be read from the data.** Every loan in the data was approved under the old policy, so the bad rate of past rejects is unknown. Each declined tail loan funds new approvals at an unchanged bad rate only if the newcomers default at less than 16.6%: 2.8 new approvals per declined loan if they default at 8.8%, 1.4 at 13.2%, one for one (no net gain) at 16.6%. The number that decides it must come from a test.
+
+## Three decisions requested
+
+1. **Adopt the cost-based rule** as the cut-off policy, once Finance confirms the margin and loss assumptions behind it.
+2. **Approve a controlled trial of the new model** on 20% of applications (32,438 approved loans per arm, about 2.4 months), with the manual-review tier and a decision rule written before it starts, after validation and with a plain-language reason for every decline. Compliance signs off the fair-lending position (approval rates 90.8% women, 90.6% men; lowest age-band ratio 0.89, above the 0.80 screen).
+3. **Fund the below-cut-off test** (589 approved loans, about 2.6M CU of expected net losses) and a monitoring plan that tracks outcomes as well as applicant mix: in April to October 2020 the bad rate halved and the model's risk estimates ran up to 66% above actual while the score distribution stayed within normal bounds (population stability index at most 0.08).
+
+## Caveats
+
+- **Selection bias.** All 1,526,659 loans in the data (decisions January 2019 to October 2020, 3.14% defaulted) were approved by the historical policy. Approval rates here are shares of previously approved applicants, not through-the-door rates, and the bad rate of past rejects is unknown.
+- **Assumptions drive the money, not the direction.** Margins, the 60% loss on a bad loan and the 40% reviewer hit rate are assumptions; across the margin ranges the quarterly gain runs from 56.6M to 147.7M CU. The model's estimates ran about 10% below actual in the test quarter and need refreshing before go-live; with every applicant's estimated odds of default raised 25% before the rule is applied, profit under the rule moves by 0.2%.
