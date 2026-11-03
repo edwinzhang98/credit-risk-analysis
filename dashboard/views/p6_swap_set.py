@@ -43,7 +43,7 @@ if mode.startswith("1"):
     k2.metric("Their bad rate", f"{out.bad_rate:.1%}", help=f"Whole book: {B:.2%}; 95% interval {out.bad_rate_ci_low:.1%} to {out.bad_rate_ci_high:.1%}")
     k3.metric("Book bad rate after", f"{y[new].mean():.2%}", f"{100 * (y[new].mean() - B):+.2f} pp", delta_color="inverse")
     k4.metric("Net value of declining them", charts.fmt_money(-out.net_value_if_approved),
-              help="Credit losses avoided minus margin forgone on the declined good customers, over the quarter.")
+              help="Modelled credit losses avoided at the assumed 60% loss rate minus margin forgone on the declined good customers, over the quarter.")
     st.dataframe(fmt_swap(sw[sw.applications > 0]), hide_index=True, use_container_width=True)
 
     st.markdown("**Can the room be spent on more approvals?** Only applicants the lender rejected in the past could be added, and their bad rate is not "
@@ -86,7 +86,7 @@ else:
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Approval rate", f"{s.loc['approval_rate', 'proposed']:.1%}", f"{100 * s.loc['approval_rate', 'change']:+.1f} pp")
     k2.metric("Bad rate of approved loans", f"{s.loc['bad_rate_approved', 'proposed']:.2%}", f"{100 * s.loc['bad_rate_approved', 'change']:+.2f} pp", delta_color="inverse")
-    k3.metric("Credit losses", charts.fmt_money(s.loc["credit_loss", "proposed"]), charts.fmt_money(s.loc["credit_loss", "change"]), delta_color="inverse")
+    k3.metric("Modelled credit losses (60% loss rate)", charts.fmt_money(s.loc["credit_loss", "proposed"]), charts.fmt_money(s.loc["credit_loss", "change"]), delta_color="inverse")
     k4.metric("Net profit", charts.fmt_money(s.loc["net_profit", "proposed"]), charts.fmt_money(s.loc["net_profit", "change"]))
     c1, c2 = st.columns([1.1, 1])
     status = "the champion's cost-based rule" if sq.endswith("rule") else f"the champion approving {cur.mean():.1%}"
@@ -104,8 +104,8 @@ else:
                                "mean_pd_champion": "{:.2%}", "mean_pd_challenger": "{:.2%}"}), hide_index=True, use_container_width=True)
 
 how_to_read("""
-**Swap set** is the standard way risk teams describe a policy change. Every application lands in one of four cells: approved under both
-policies, declined under both, **swap-in** (declined today, approved tomorrow) or **swap-out** (approved today, declined tomorrow). A change is worth making when swap-outs default much more often than swap-ins, and the money column says by how much.
+A **swap set** shows which decisions change between the two models. Every application lands in one of four cells: approved under both
+policies, declined under both, **swap-in** (declined today, approved tomorrow) or **swap-out** (approved today, declined tomorrow). A change is worth making when swap-outs default much more often than swap-ins, and the money column says by how much. At the assumed 60% loss rate, defaults imply the modelled losses shown.
 
 **Question 1, today's book.** The status quo is what actually happened: every loan in the data was approved. Tightening the cut-off only
 creates swap-outs, and we can see exactly how they performed. Loosening would create swap-ins from people the lender rejected in the past;
@@ -115,5 +115,5 @@ small, controlled below-cut-off test.
 
 **Question 2, a model change.** Both models score the same booked loans, so swap-ins and swap-outs are both observed. "Same approval rate"
 asks: approving the same number of people, does the new model pick safer ones? "Same bad rate" asks: holding risk constant, how many more people
-can be approved?
+can be approved? The same-bad-rate comparison is matched after the fact on booked test loans; a cut-off fixed in advance must confirm the gain in the trial.
 """)

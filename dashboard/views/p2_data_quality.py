@@ -16,7 +16,7 @@ kpi_row([
     ("Booked loans reconciled", f"{m['data']['loans']:,}", "No table holds a loan missing from the base table; tables with several rows per loan are reduced to one row per loan before the join; 47,994 defaults match the dataset README."),
     ("Key and target checks failed", f"{int(keys.violations.sum())}", "Primary keys unique in every table; target is 0/1; 47,994 defaults match the dataset README."),
     ("Raw columns reviewed", f"{lk['raw_columns_reviewed']}", f"{lk['kept']} kept, {lk['rebuilt']} rebuilt point-in-time, {lk['dropped']} dropped and {lk['raw_columns_reviewed'] - lk['kept'] - lk['rebuilt'] - lk['dropped']} kept only to test fair lending, each with a written reason."),
-    ("Snapshot taken after the decision", "≈ 14 days", "Dated fields run up to exactly 14 days past the decision date, never more."),
+    ("Snapshot taken after the decision", "≈ 14 days", "Event dates run up to 14 days past the decision date, never more; the only later dates are scheduled future due dates (up to 47 days)."),
 ])
 
 tab1, tab2, tab3, tab4 = st.tabs(["Reconciliation and ranges", "Time coverage", "Look-ahead leakage", "Feature inclusion log"])
@@ -31,7 +31,7 @@ with tab1:
 with tab2:
     st.plotly_chart(charts.monthly_volume_bad_rate(tr, CFG["split"]), use_container_width=True)
     st.caption("The April 2020 break (volume down about 86% in one month and back to March's level by September; bad rate halved) is why model building stops at "
-               "March 2020 and the later months are used to test monitoring. October 2020 covers 1 to 5 October only.")
+               "March 2020 and the later months are used to illustrate monitoring. October 2020 covers 1 to 5 October only.")
 with tab3:
     st.plotly_chart(charts.snapshot_offset_chart(off), use_container_width=True)
     st.plotly_chart(charts.point_in_time_chart(pit), use_container_width=True)
@@ -43,7 +43,7 @@ with tab3:
     st.markdown(f"**What the leak does to the model** (notebook 02): with the snapshot fields as provided, out-of-time Gini is **{lk['gini_test_naive_offline']:.3f}** vs "
                 f"**{lk['gini_test_pit']:.3f}** point-in-time; with decision-time values swapped in where they can be rebuilt, **{lk['gini_test_naive_decision_time']:.3f}**. "
                 f"The naive model's edge is larger among the **{lk['share_post_decision_activity']:.1%}** of clients who did something after the decision "
-                f"({gap_post:+.3f} vs {gap_rest:+.3f} Gini elsewhere). The rest comes from snapshot fields that mix pre- and post-decision information; they were dropped, "
+                f"({gap_post:+.3f} vs {gap_rest:+.3f} Gini elsewhere). The rest comes from clearly leaking snapshot fields that mix pre- and post-decision information; they were dropped, "
                 f"at a cost of less than one Gini point.")
     c1, c2 = st.columns(2)
     c1.dataframe(grp.pivot_table(index="model", columns="group", values="gini").rename_axis(index="Model", columns="Out-of-time Gini").round(3), use_container_width=True)
@@ -71,12 +71,12 @@ pre-computed "history" fields (applications in the last 30 days, last rejection 
 decision. Two charts prove it:
 - *Snapshot timing:* we recount each client's applications ourselves. The provided "30-day" count agrees with a count ending at the decision date
   for 90.1% of loans, rising to 92.5%, 96.7% and 98.4% for windows ending 7, 14 and 21 days later. The earlier-applications table holds nothing
-  dated more than 14 days after the decision, so the +21-day window cannot add later applications (it only starts later). The test shows the fields
-  were measured at least 14 days after the decision; other dated fields never run more than 14 days late, so we assume 14.
+  with event dates more than 14 days after the decision, so the +21-day window cannot add later applications (it only starts later). The test shows the fields
+  were measured at least 14 days after the decision. Event dates run up to 14 days past the decision date, never more; the only later dates are scheduled future due dates (up to 47 days). We therefore assume a 14-day snapshot offset.
 - *Point-in-time check:* for each dated field, the blue dot is the default rate when the event happened before the decision, the orange dot when it
-  happened after. After-decision events (for example a rejection elsewhere a week later) go with much higher default rates: a model fed these
-  fields would look good in testing and fail in production.
+  happened after. After-decision events (for example a rejection elsewhere a week later) go with much higher default rates. These
+  fields are not available at decision time and overstate offline performance.
 
-**What we did about it:** history features were rebuilt from the previous-applications table using only applications created *before* the
-decision date; fields that cannot be rebuilt that way were dropped. The feature inclusion log records the decision and reason for every raw column.
+**What we did about it:** dated histories were rebuilt from the previous-applications table using only applications created *before* the
+decision date; clearly leaking fields were dropped. Some retained long-window snapshot summaries, measured about 14 days after the decision, still carry residual look-ahead. The feature inclusion log records the decision and reason for every raw column.
 """)

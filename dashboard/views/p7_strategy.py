@@ -22,22 +22,22 @@ tab1, tab2, tab3, tab4 = st.tabs(["Three-tier policy", "Fair lending", "Monitori
 
 with tab1:
     with st.container(border=True):
-        st.markdown("**Manual review assumptions** (not in the data; to be measured from review outcomes)")
+        st.markdown("**Manual review assumptions** (not in the data; to be measured from review outcomes). At 300 CU a review and a 10% good-decline rate, the gain over the two-tier rule ranges from 1.8M to 32.0M CU a quarter across 20%-60% catch rates.")
         c1, c2, c3, c4 = st.columns(4)
         cost = c1.slider("Cost per review (CU)", 50, 1500, int(rev0.cost_per_case), 50)
         catch = c2.slider("Share of bad applicants a reviewer declines", 0.10, 0.80, float(rev0.bad_catch_rate), 0.05)
         gdec = c3.slider("Share of good applicants a reviewer declines", 0.00, 0.40, float(rev0.good_decline_rate), 0.01)
-        cap = c4.slider("Review capacity (share of applications)", 0.00, 0.15, float(rev0.capacity_share), 0.005, format="%.3f")
+        cap = c4.slider("Review capacity (share of each month's applications)", 0.00, 0.15, float(rev0.capacity_share), 0.005, format="%.3f")
     rv = Review(cost, catch, gdec, cap)
-    tiers = assign_tiers(pH, g, l, rv, capacity=cap * len(T))
+    tiers = assign_tiers(pH, g, l, rv, capacity_share=cap, groups=T.decision_month.to_numpy())  # cap applied month by month
     wanted = int((assign_tiers(pH, g, l, rv, capacity=None) == 1).sum())
     tab, tot = tier_outcomes(tiers, y, g, l, amt, rv, months=MONTHS)
     two = evaluate_policy(approve_ev_positive(pH, g, l), y, g, l)
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Approval rate (after review)", f"{tot['approval_rate']:.1%}")
     k2.metric("Bad rate of approved loans", f"{tot['bad_rate_approved']:.2%}")
-    k3.metric("Reviews per month", f"{tot['reviews_per_month']:,.0f}", help=f"Capacity: {cap * len(T) / MONTHS:,.0f} reviews a month; {wanted / MONTHS:,.0f} a month "
-              "would be worth reviewing, so when the cap binds the most valuable are kept. Booked-loan volume.")
+    k3.metric("Reviews per month", f"{tot['reviews_per_month']:,.0f}", help=f"Capacity: {cap:.1%} of each month's applications ({cap * len(T) / MONTHS:,.0f} reviews a month on average); {wanted / MONTHS:,.0f} a month "
+              "would be worth reviewing, so the most valuable are kept within each month's cap. Booked-loan volume.")
     k4.metric("Net profit vs two-tier rule", charts.fmt_money(tot["net_profit"]), charts.fmt_money(tot["net_profit"] - two["net_profit"]))
     empty_title = None
     if (tiers == 1).sum() == 0:
@@ -67,7 +67,11 @@ with tab2:
                          "bad_rate_approved": "{:.2%}", "mean_pd": "{:.2%}", "calibration_ratio": "{:.2f}"}), hide_index=True, use_container_width=True)
     pr = load("proxy_check")
     st.caption("Proxy check (notebook 02): the 90 model inputs predict " + "; ".join(f"{r.attribute.lower()} with AUC {r.auc_from_model_inputs:.2f}" for r in pr.itertuples())
-               + " (0.5 = no information). Excluding an attribute does not stop proxies, so outcomes are tested by group.")
+               + f" (0.5 = no information). For age 50+, AUC is {m['leakage']['proxy_auc_age50']:.2f} with all inputs; "
+               f"{m['leakage']['proxy_auc_age50_without']['Years with current employer']:.2f} without years with current employer; "
+               f"{m['leakage']['proxy_auc_age50_without']['Product type and share of past cash applications']:.2f} without product type and share of past cash applications; "
+               f"{m['leakage']['proxy_auc_age50_without']['Loan size, payment and income (7 inputs)']:.2f} without the 7 loan-size, payment and income inputs. "
+               "Excluding an attribute does not stop proxies, so outcomes are tested by group.")
 
 with tab3:
     mon = load("monitoring_monthly")
@@ -100,6 +104,8 @@ with tab3:
 | Gini (mature vintages) | quarterly | 5 points below validation | 10 points below | Model validation |
 | Override rate and override bad rate | monthly | > 5% of decisions | override bad rate above model-approved | Credit policy |
 | Reviewer catch rate (1 − bads among review approvals ÷ bads expected in the reviewed pool) | monthly, as outcomes mature | below 30% (25% under the 40% assumption) | - | Underwriting operations |
+
+The early-delinquency triggers (+20% to investigate, +40% to act) are proposals in `config.yaml` `proposals`, to be agreed before launch.
 """)
 
 with tab4:
@@ -108,20 +114,20 @@ with tab4:
         {"For": "Head of Credit Policy", "Do": "Adopt the cost-based rule as the cut-off policy, once Finance confirms the margins: product break-evens of 25% (cash), 14% (cards), 8% (point-of-sale)",
          "Expected impact": f"decline {room['declined_share']:.1%} of today's approvals (bad rate {room['tail_bad_rate']:.1%}); total cost of wrong decisions {m['vs_today'][CH]['total_cost_change']:+.0%} vs today's policy",
          "Measure": "approval rate, bad rate of approved loans by vintage, net profit", "Risk": "margins are assumptions; Finance must sign off the cost matrix"},
-        {"For": "Model Risk / Validation", "Do": "Validate the challenger and run it as a champion/challenger test (20% of traffic, stratified by product)",
-         "Expected impact": f"{100 * mv['same_bad_rate']['extra_approvals_pp']:+.1f} pp approvals versus a rebuilt scorecard applying the same rule, at its bad rate",
-         "Measure": "30+ days past due at month 3, then full default; pre-registered decision rule", "Risk": "less transparent than the scorecard; requires SHAP reason codes in production"},
+        {"For": "Model Risk / Validation", "Do": "Validate the challenger and run a champion/challenger test of the two-tier cost rules (20% of traffic, stratified by product); pilot manual review separately outside the trial arms",
+         "Expected impact": f"under the two-tier cost rules, {-100 * m['model_value']['rule_vs_rule']['approval_rate_change']:.1f} pp fewer approvals than the champion rule; approved-book bad rate {m['loss_curve'][CH]['rule']['bad_rate_approved']:.2%} vs {m['loss_curve'][CP]['rule']['bad_rate_approved']:.2%} ({-100 * m['model_value']['rule_vs_rule']['bad_rate_change']:.1f} pp lower); +{charts.fmt_money(m['model_value']['rule_vs_rule']['net_profit_change'])} modelled net profit and {charts.fmt_money(-m['model_value']['rule_vs_rule']['credit_loss_change'])} lower modelled credit losses a quarter",
+         "Measure": f"sized to detect {m['loss_curve'][CH]['rule']['bad_rate_approved']:.2%} vs {m['loss_curve'][CP]['rule']['bad_rate_approved']:.2%}: {m['test_design']['champion_challenger_loans_challenger']:,} approved challenger loans and {m['test_design']['champion_challenger_loans_champion']:,} approved champion loans; 30+ days past due at month 3, then full default; proposed bad-rate tolerance 0.2 pp (`config.yaml` `proposals`), to be agreed before launch", "Risk": "less transparent than the scorecard; requires SHAP reason codes in production"},
         {"For": "Credit Policy + Finance", "Do": "Run a below-cut-off test: approve a random sample of applicants just below today's approval line (applicants the current policy rejects), with capped amounts",
-         "Expected impact": f"measures the bad rate of today's rejects, the number that decides whether approvals can rise at a flat bad rate; a pass funds about {m['test_pass']['net_change_per_quarter']:+,.0f} loans a quarter",
-         "Measure": "bad rate of test approvals vs the declined tail", "Risk": f"about {m['test_design']['below_cutoff_loans_needed']:,} test loans; expected net cost ≈ {charts.fmt_money(m['test_design']['price_of_information'])}, a floor if today's rejects are riskier than the declined tail"},
-        {"For": "Underwriting operations", "Do": "Route the grey zone to manual review within capacity; log review outcomes",
-         "Expected impact": f"{m['three_tier']['totals']['reviews_per_month']:,.0f} reviews a month on booked-loan volume (reset on through-the-door volume); {charts.fmt_money(m['three_tier']['uplift_vs_two_tier'])} a quarter if reviewers catch 40% of bads",
+         "Expected impact": f"measures the bad rate of today's rejects; if the true rate is the 25%-lower target ({m['test_pass']['swap_in_bad_rate']:.1%}), about {m['test_pass']['new_approvals_per_decline']:.1f} new approvals per declined tail loan, about {m['test_pass']['net_change_per_quarter']:+,.0f} more loans a quarter; expansion is sized on the measured rate",
+         "Measure": f"exact one-sided 2.5% binomial test with at least 80% power at the target; passes if at most {m['test_design']['below_cutoff_pass_max_defaults']} of {m['test_design']['below_cutoff_loans_needed']:,} approved loans default ({m['test_design']['below_cutoff_pass_max_rate']:.1%}); passes {m['test_design']['below_cutoff_power_at_target']:.0%} of the time if the true rate is {m['test_pass']['swap_in_bad_rate']:.1%}", "Risk": f"about {m['test_design']['below_cutoff_loans_needed']:,} test loans; expected net cost ≈ {charts.fmt_money(m['test_design']['price_of_information'])} on the declined tail's economics, likely an underestimate because today's rejects are probably riskier"},
+        {"For": "Underwriting operations", "Do": "Pilot the grey zone separately outside the trial arms, within 5% of each month's applications; log review outcomes and measure the catch rate before counting the gain",
+         "Expected impact": f"{m['three_tier']['totals']['reviews_per_month']:,.0f} reviews a month on average on booked-loan volume (reset on through-the-door volume); monthly caps {m['three_tier']['capacity_by_month']['202001']:,} / {m['three_tier']['capacity_by_month']['202002']:,} / {m['three_tier']['capacity_by_month']['202003']:,} for Jan / Feb / Mar 2020; {charts.fmt_money(m['three_tier']['uplift_vs_two_tier'])} a quarter at 40% catch, 10% good-decline and 300 CU a review; 1.8M to 32.0M CU at 20%-60% catch with 10% good-decline",
          "Measure": "reviewer catch rate, review cost per case, turnaround time", "Risk": "value depends on the reviewer catch rate, which is not yet measured"},
         {"For": "Compliance", "Do": "Approve the excluded-attribute list and the adverse-action reason library; review age-band outcomes",
-         "Expected impact": "documented fair-lending position before go-live", "Measure": "approval-rate ratio by sex and age band each quarter",
+         "Expected impact": "documented fair-lending position before go-live; Compliance to confirm lawful remedies", "Measure": "approval-rate ratio and calibration by sex and age band each quarter",
          "Risk": "inputs still carry age information (proxy AUC 0.84)"},
         {"For": "Risk analytics", "Do": "Monthly monitoring pack (PSI, CSI, calibration, approval rate, overrides) with the triggers above",
-         "Expected impact": "input shifts caught within a month; outcome shifts within one to three months via early delinquency", "Measure": "alerts raised and actioned",
+         "Expected impact": "applicant-mix checks monthly; early delinquency once vintages reach month 3 on book (detection speed not back-tested)", "Measure": "alerts raised and actioned",
          "Risk": "score stability alone missed the 2020 outcome shift; calibration needs mature vintages"},
     ])
     st.dataframe(rec, hide_index=True, use_container_width=True)
@@ -129,18 +135,18 @@ with tab4:
 how_to_read("""
 **Three tiers.** Each application goes to the action with the highest expected value: approve, decline, or send to a person. A review costs money
 and a reviewer only catches some of the bad applicants, so review is worth it only in the grey zone near the break-even PD *and* for loans large
-enough to justify the cost; small point-of-sale loans never qualify. If more applications qualify than the team can handle, the most valuable
-reviews are kept. Move the sliders: a better reviewer or a cheaper review widens the grey zone.
+enough to justify the cost; small point-of-sale loans never qualify. Capacity is 5% of each month's applications at the default setting; if more applications qualify than the team can handle, the most valuable
+reviews are kept within each month's cap. Losses are modelled at the assumed 60% loss rate. Move the sliders: a better reviewer or a cheaper review widens the grey zone.
 
 **Fair lending.** The *approval-rate ratio* compares each group's approval rate with the most-approved group; below 0.80 (the "four-fifths"
-screen) is a trigger for review, not a legal verdict. Look at the bad rates next to it: younger applicants are approved less often because they
-default more often in this book, and the calibration ratio shows whether the model over- or under-states their risk.
+screen) is a trigger for review, not a legal verdict. Approval-rate parity passes this screen. Look at the bad rates next to it: younger applicants were approved less often and had higher observed default rates;
+their risk is also under-predicted (calibration ratio about 0.73), and so is men's. Compliance must confirm which remedies are lawful in the relevant jurisdiction.
 
 **Monitoring.** PSI (population stability index) compares this month's score distribution with the one the model was built on; CSI does the same
-for one input. They react as soon as applicants change, before any defaults are observed. Gini and calibration need outcomes, so they lag. The
+for one input. They track applicant-mix changes before defaults are observed; detection speed was not back-tested. Gini and calibration need outcomes, so they lag. The
 COVID months are the lesson: the challenger's score PSI stayed below 0.10 (the scorecard's reached about 0.15, in step with the employment field's
-collapse), yet the bad rate halved and predicted PDs ran well above actual. Calibration showed it, months later, while feature CSI caught the
-data-capture break (the employment field) at once. The fall in the bad rate may reflect COVID-era measures, the lender's own tightening or loans
+collapse), yet the bad rate halved and predicted PDs ran well above actual. Retrospective monthly checks show the calibration shift and the
+data-capture break in the employment field. The fall in the bad rate may reflect COVID-era measures, the lender's own tightening or loans
 too recent to have defaulted (the outcome horizon is not disclosed); the data cannot separate these, so the back-test is illustrative. Hence the
 plan tracks an early outcome (30+ days past due at month 3) next to PSI, and treats "PSI fine, calibration off, Gini fine" as a level problem: re-check cut-offs and calibration, do not
 rebuild the model.

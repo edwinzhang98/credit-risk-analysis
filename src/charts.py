@@ -289,7 +289,7 @@ def tradeoff_curve(curves: dict, points: list[dict] | None = None, x_range=(0.80
     for p in points or []:
         fig.add_trace(_marker(p["x"], p["y"], p["label"], p.get("color", INK), text=p.get("text"), symbol=p.get("symbol", "circle"), size=11,
                               textpos=p.get("textpos", "top left"), hover=f"{p['label']}<br>approval %{{x:.1%}} · bad rate %{{y:.2%}}<extra></extra>"))
-    base_layout(fig, title or "At any approval rate the challenger's approved book has a lower bad rate",
+    base_layout(fig, title or "From 80% to just under 100% approval, the challenger's approved book has a lower bad rate",
                 "Bad rate of the approved book (%) vs share approved, out-of-time test Jan to Mar 2020. Lines = one PD cut-off for all products; "
                 "the cost-based rule uses a different cut-off per product, so its dots sit just off the lines", height=height)
     fig.update_xaxes(title="Approval rate (share of booked-population applications)", tickformat=".0%", range=list(x_range))

@@ -34,14 +34,25 @@ economics:
   ead_share: 0.80        # share of the loan amount still outstanding when a default happens
   lgd: 0.75              # share of that exposure never recovered
   margin_by_product:     # net lifetime profit of a loan that is repaid, share of the loan amount
-    CAL: 0.20            # cash loans: median contractual lifetime interest ~36% of principal, less prepayment, funding, opex
-    COL: 0.05            # point-of-sale loans: ~12% median lifetime interest, 42% are 0%-interest promotions
+    # Derivation (assumptions, docs/assumptions.md E1): cash = lifetime interest ~49% of principal (median rate 42% a year x 24 months)
+    #   - ~25% of that for early repayment - ~7% funding (6% a year on ~60% average balance for ~2 years) - ~5% operating and
+    #   acquisition cost = ~25%, rounded down to 20%; point-of-sale = lifetime interest ~12.5% (42% are 0%-interest promotions)
+    #   - early repayment - ~3% funding - ~4% operating cost + ~2% merchant and insurance income = ~5%.
+    CAL: 0.20            # cash loans
+    COL: 0.05            # point-of-sale loans
     REL: 0.10            # revolving cards: no rate in the data; amount is the credit limit
   margin_default: 0.10   # any loan without a product type (1 case)
 
 # Manual review assumptions for the 3-tier policy (all adjustable in the dashboard).
 review:
-  cost_per_case: 300           # currency units per reviewed application (about 1% of the median loan)
+  cost_per_case: 300           # currency units per reviewed application (about 1% of the median loan; ~20-30 minutes of an underwriter's time)
   bad_catch_rate: 0.40         # share of bad applicants that a reviewer declines
   good_decline_rate: 0.10      # share of good applicants that a reviewer declines anyway
   capacity_share: 0.05         # review team capacity as a share of monthly applications
+
+# Proposed policy thresholds (not estimated from the data; to be agreed with Model Risk and Credit Policy before go-live).
+# Documented in docs/model_card.md (monitoring plan) and docs/cutoff_and_swap_set.md (trial rules).
+proposals:
+  early_delinquency_investigate: 0.20   # 30+ DPD at month 3 on book, relative excess over the level expected from the PDs
+  early_delinquency_act: 0.40           # same measure; also the trial's stop rule
+  trial_bad_rate_tolerance_pp: 0.2      # champion/challenger trial: the challenger arm's bad rate may not exceed the champion arm's by more

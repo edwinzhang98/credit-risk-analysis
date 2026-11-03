@@ -86,6 +86,21 @@ def test_tiers_respect_capacity():
     assert (t == 1).sum() <= 100
 
 
+def test_monthly_capacity_holds_in_every_month():
+    p, y, amount, product = _toy()
+    g, l = Economics().per_loan(amount, product)
+    months = np.where(np.arange(len(p)) < len(p) // 3, 202001, 202002)
+    uncapped = assign_tiers(p, g, l, Review(), capacity=None)
+    t = assign_tiers(p, g, l, Review(), capacity_share=0.01, groups=months)
+    for m in np.unique(months):
+        assert (t[months == m] == 1).sum() <= int(0.01 * (months == m).sum())
+    # a month with spare capacity keeps every review it wants; loans not sent to review keep their two-tier decision
+    roomy = assign_tiers(p, g, l, Review(), capacity_share=1.0, groups=months)
+    assert np.array_equal(roomy, uncapped)
+    two_tier = assign_tiers(p, g, l, Review(), capacity=0)
+    assert np.array_equal(t[t != 1], two_tier[t != 1])
+
+
 def test_psi_and_wilson():
     rng = np.random.default_rng(1)
     a = rng.normal(size=50000)

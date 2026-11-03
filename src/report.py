@@ -118,8 +118,8 @@ def build_report(cfg: dict | None = None) -> Path:
                                              fmt=".3f", bands=((0.10, "investigate 0.10", charts.STATUS["warning"]), (0.25, "act 0.25", charts.STATUS["critical"]))))
     oos = mon[mon.decision_month >= 201911]
     F["calratio"] = fig_html(charts.monitor_lines(oos, "calibration_ratio", charts.calibration_drift_title(oos),
-                                                  "Mean predicted PD ÷ observed bad rate by decision month (1.0 = calibrated; Nov-Dec 2019 is the calibration window, "
-                                                  "so it sits at 1.0 by construction)" + charts._partial_month_note(L("dq_time_range")), fmt=".2f",
+                                                  "Mean predicted PD ÷ observed bad rate by decision month (1.0 = calibrated; the models were calibrated on Nov-Dec 2019 pooled, "
+                                                  "so those two months sit near 1.0)" + charts._partial_month_note(L("dq_time_range")), fmt=".2f",
                                                   bands=((0.8, "0.80", charts.STATUS["warning"]), (1.25, "1.25", charts.STATUS["warning"]))))
     F["gini"] = fig_html(charts.monitor_lines(mon[mon.decision_month >= 201911], "gini", "Rank-ordering held up through the shock",
                                               "Gini by decision month, out-of-sample months only (from Nov 2019)", fmt=".3f"))
@@ -232,6 +232,10 @@ def build_report(cfg: dict | None = None) -> Path:
           "in_rate": float(swr.loc[in_c, "bad_rate"]), "in_pos": float(prof.loc["Swap-in", "share_pos"]), "out_pos": float(prof.loc["Swap-out", "share_pos"]),
           "in_new": float(prof.loc["Swap-in", "share_new_to_lender"]), "out_new": float(prof.loc["Swap-out", "share_new_to_lender"]),
           "in_med": float(prof.loc["Swap-in", "median_amount"]), "out_med": float(prof.loc["Swap-out", "median_amount"])}
+    rg = L("review_grid")
+    rg = rg[rg.good_decline_rate == m["economics"]["review"]["good_decline_rate"]]
+    RG = {"low": float(rg.net_profit_uplift_vs_two_tier.min()), "high": float(rg.net_profit_uplift_vs_two_tier.max()),
+          "c_lo": float(rg.bad_catch_rate.min()), "c_hi": float(rg.bad_catch_rate.max())}  # review-tier gain range across catch rates
     notebooks = [(n, f"{n}.html") for n in ["01_data_audit", "02_feature_eng", "03_modeling", "04_threshold_and_strategy"]]
 
     env = Environment(loader=FileSystemLoader(str(ROOT / "src" / "templates")), autoescape=False)
@@ -242,7 +246,7 @@ def build_report(cfg: dict | None = None) -> Path:
         psi_cp_max=float(mon[(mon.model == CP) & (mon.decision_month >= 202004)].psi.max()),
         psi_ch_max=float(mon[(mon.model == CH) & (mon.decision_month >= 202004)].psi.max()),
         gini_train_ch=float(mmi[(CH, "train")]), gini_valid_ch=float(mmi[(CH, "valid")]),
-        uncapped_reviews=float(m["three_tier"]["uncapped_review_per_month"]), TR=TR, SW=SW,
+        uncapped_reviews=float(m["three_tier"]["uncapped_review_per_month"]), TR=TR, SW=SW, RG=RG,
     )
     # freshness stamp: tests/test_docs_consistency.py checks that the report was built from the current metrics and template
     html += f"\n<!-- built-from metrics.json sha256={sha256(reports / 'metrics.json')} template sha256={sha256(ROOT / 'src' / 'templates' / 'report.html.j2')} -->\n"

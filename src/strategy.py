@@ -242,12 +242,22 @@ def headroom_table(book_bad_rate: float, tail_bad_rate: float, tail_count: int, 
 TIERS = ["Auto-approve", "Manual review", "Decline"]
 
 
-def assign_tiers(pd_, gain, loss, review: Review, capacity: float | None = None) -> np.ndarray:
+def _most_valuable(idx: np.ndarray, value: np.ndarray, cap: int) -> np.ndarray:
+    """The `cap` entries of `idx` with the largest `value` (stable order for ties)."""
+    if len(idx) <= cap:
+        return idx
+    return idx[np.argsort(-value[idx], kind="mergesort")[:cap]]
+
+
+def assign_tiers(pd_, gain, loss, review: Review, capacity: float | None = None,
+                 capacity_share: float | None = None, groups=None) -> np.ndarray:
     """0 = auto-approve, 1 = manual review, 2 = decline.
 
     Each loan gets the action with the highest expected profit: approve (1-p)g - pL, decline 0, or review
     (reviewer removes a share of bads and of goods, at a fixed cost per case). If more loans want review than the team
-    can handle (`capacity` = max number of reviews), the reviews with the largest gain over the next-best action are kept.
+    can handle, the reviews with the largest gain over the next-best action are kept. Capacity is either
+    `capacity` (max number of reviews in total) or `capacity_share` (max reviews as a share of applications), applied
+    separately within each value of `groups` (e.g. the application month), so no month exceeds its own cap.
     """
     eva = ev_approve(pd_, gain, loss)
     evr = ev_review(pd_, gain, loss, review)
@@ -255,8 +265,13 @@ def assign_tiers(pd_, gain, loss, review: Review, capacity: float | None = None)
     value_of_review = evr - best_auto
     tier = np.where(eva > 0, 0, 2)
     want = np.nonzero(value_of_review > 0)[0]
-    if capacity is not None and len(want) > capacity:
-        keep = want[np.argsort(-value_of_review[want], kind="mergesort")[: int(capacity)]]
+    if capacity_share is not None:
+        grp = np.zeros(len(tier), dtype=int) if groups is None else pd.factorize(np.asarray(groups))[0]
+        caps = np.bincount(grp)
+        keep = np.concatenate([_most_valuable(want[grp[want] == k], value_of_review, int(capacity_share * caps[k]))
+                               for k in range(len(caps))] + [np.array([], dtype=int)])
+    elif capacity is not None:
+        keep = _most_valuable(want, value_of_review, int(capacity))
     else:
         keep = want
     tier[keep] = 1

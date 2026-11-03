@@ -27,9 +27,9 @@ A *policy* is a rule that maps each application to approve / review / decline, e
 | **Capture rate** | bads declined ÷ all bads | Share of defaults the policy keeps off the book (recall on bads). |
 | **False positive rate (good-decline rate)** | goods declined ÷ all goods | Share of good customers turned away. |
 | **Decline precision** | bads declined ÷ declined | Bad rate inside the declined group. |
-| **Review hit rate** | bads among reviewed ÷ reviewed | The bad rate of the review queue (12.2% in the base case). |
+| **Review hit rate** | bads among reviewed ÷ reviewed | The bad rate of the review queue (12.3% in the base case). |
 | **Reviewer catch rate** | share of the bad applicants in review that the reviewer declines | An assumption (40%) until measured. Declined applicants have no outcome, so it is estimated as 1 − bads among review approvals ÷ bads expected in the reviewed pool (from calibrated PDs). |
-| **Bads stopped per review** | review hit rate × reviewer catch rate | 4.9% in the base case (544 of 11,134 reviews in the test quarter). |
+| **Bads stopped per review** | review hit rate × reviewer catch rate | 4.9% in the base case (about 548 expected defaults stopped across 11,133 reviews in the test quarter). |
 
 ## Money metrics (cost matrix)
 
@@ -46,7 +46,7 @@ All amounts are per loan and scale with the loan amount *A*. Assumption values a
 | **Total cost of wrong decisions** | credit loss + forgone margin (+ review cost in the three-tier policy). The loss curve in the README plots it by PD cut-off. |
 | **Net profit** | Σ over approved goods of m × A − credit loss − review cost. Equals (margin of all goods) − total cost of wrong decisions, so minimising one maximises the other. |
 | **Break-even PD** | p* = m ÷ (m + L). Approving a loan with calibrated PD p has expected value A·[(1−p)·m − p·L], which is positive exactly when p < p*. Base case: cash **25.0%**, revolving **14.3%**, point-of-sale **7.7%**. |
-| **Cost-based policy** | approve when expected value > 0, i.e. PD below the loan's product break-even. Compared against today's policy, which approved every booked loan (a 0.5 PD cut-off lands in the same place), and against single cut-offs (one PD cut-off for every product). |
+| **Cost-based policy** | approve when expected value > 0, i.e. PD below the loan's product break-even. Compared against today's policy, which approved every booked loan (a 0.5 PD cut-off lands in almost the same place), and against single cut-offs (one PD cut-off for every product). |
 | **Review cost** | reviews × cost per review (base case 300 CU). |
 | **Expected value of review** | A·[(1−p)·(1−g)·m − p·(1−c)·L] − C, where c = share of bads the reviewer declines, g = share of goods the reviewer declines, C = cost per review. A loan goes to review only when this beats both approving and declining, and only up to the team's capacity (largest gain over the next-best action first; the cap binds in the base case, assumption R4). |
 
@@ -64,11 +64,11 @@ Only approved loans have outcomes, so the bad rate of applicants we would *newly
 
 ## Test sizing
 
-Both tests: two-sided 5% significance and 80% power (z = 1.96 and 0.84, rounded; the sizes below use the unrounded 1.95996 and 0.84162); code in `notebooks/04_threshold_and_strategy.ipynb`, section 11.
+Champion/challenger test: two-sided 5% significance and 80% power (z = 1.96 and 0.84, rounded; the sizes below use the unrounded 1.95996 and 0.84162). Below-cut-off test: exact one-sided 2.5% binomial test with at least 80% power. Code in `notebooks/04_threshold_and_strategy.ipynb`, section 11.
 
 | Test | Loans needed |
 |---|---|
-| **Below-cut-off test**: do applicants just below today's approval line default at r = 0.75·t, against the declined tail's t? | One-sample test: n = [1.96·√(t(1 − t)) + 0.84·√(r(1 − r))]² ÷ (t − r)² approved test loans; 589 for 16.6% vs 12.5%. **Price of information** = n × the average net loss of approving one tail loan (4,474 CU), about 2.6M CU; more if today's rejects are riskier than the tail. |
+| **Below-cut-off test**: do applicants just below today's approval line default at r = 0.75·t, against the declined tail's t? | Exact binomial test of r = t against r = 0.75·t (one-sided 2.5%). Exact power saw-tooths as n grows, so n is the smallest size from which the power stays at or above 80% for the next 100 sizes: **610 approved test loans** for 16.6% vs 12.5% (the normal approximation n = [1.96·√(t(1 − t)) + 0.84·√(r(1 − r))]² ÷ (t − r)² gives 589, where the exact power is 78%). The test passes if at most 83 loans default (13.6%), which happens 82% of the time if r = 12.5%. **Price of information** = n × the average net loss of approving one tail loan (4,474 CU), about 2.7M CU on the declined tail's economics; likely more if today's rejects are riskier than the tail. |
 | **Champion/challenger test**: is the challenger's approved-book bad rate p₁ below the champion's p₀? | Unequal allocation (Fleiss, Levin & Paik 2003, ch. 4). With k = champion arm ÷ challenger arm and p̄ = (p₁ + k·p₀) ÷ (1 + k), the challenger arm needs n₁ = [1.96·√(p̄(1 − p̄)(1 + 1/k)) + 0.84·√(p₁(1 − p₁) + p₀(1 − p₀)/k)]² ÷ (p₀ − p₁)² approved loans and the champion arm k·n₁ (k = 1 is the even split). With 20% of traffic on the challenger, k = 4: 20,544 and 82,176 approved loans for 3.17% vs 3.57%, about 1.5 months of booked-loan volume (the slower arm sets the duration). |
 
 ## Model metrics (secondary; used in the model card)
@@ -103,10 +103,10 @@ Model comparisons can also hold one side fixed. **At the same bad rate:** the ch
 
 | Metric | Definition | Thresholds |
 |---|---|---|
-| **PSI** (population stability index) of the score | Σᵢ (Aᵢ − Eᵢ) · ln(Aᵢ ÷ Eᵢ) over 10 bins set at the **training-window** score deciles; Eᵢ = training share, Aᵢ = share in the month being monitored. | < 0.10 stable · 0.10 to 0.25 investigate · ≥ 0.25 act |
-| **CSI** (characteristic stability index) | PSI applied to one input feature (missing values get their own bin; categorical inputs are compared by category share). | same |
+| **PSI** (population stability index) of the score | Σᵢ (A′ᵢ − E′ᵢ) · ln(A′ᵢ ÷ E′ᵢ) over 10 bins set at the **training-window** score deciles; Eᵢ = training share, Aᵢ = share in the month being monitored. Shares are floored before the formula: E′ = max(E, 10⁻⁶), A′ = max(A, 10⁻⁶). | < 0.10 stable · 0.10 to 0.25 investigate · ≥ 0.25 act |
+| **CSI** (characteristic stability index) | PSI applied to one input feature (missing values get their own bin; categorical inputs are compared by category share). For categorical inputs, bins are the union of categories seen in either period; an absent category gets share 0 before the floor. | same |
 | **Monthly Gini** | Gini within each decision month. | investigate at 5 points below the validation Gini, act at 10 (reviewed quarterly on mature vintages) |
-| **Early delinquency** (proposed, not in this dataset) | share of a vintage that is 30+ days past due at month 3 on book, compared with the share expected for those PDs. The fastest outcome signal; the dataset only carries a final default flag. | investigate at +20% vs expected, act at +40% |
+| **Early delinquency** (proposed, not in this dataset) | share of a vintage that is 30+ days past due at month 3 on book, compared with the share expected for those PDs. The fastest outcome signal; the dataset only carries a final default flag. | investigate at +20% vs expected, act at +40%; proposals in `config.yaml` (`proposals.early_delinquency_investigate` / `proposals.early_delinquency_act`), to be agreed before go-live |
 | **Calibration ratio by month** | mean PD ÷ observed bad rate per month. | alert outside 0.8 to 1.25 |
 | **Vintage bad rate** | bads ÷ loans booked in the vintage month. | |
 | **Vintage curve** (full definition) | cumulative bad rate of a vintage by months on book (MOB 1, 2, 3, ...). Needs the date of default; **not available in this dataset**, which only has a final default flag, so vintages are compared on their final bad rate. | |

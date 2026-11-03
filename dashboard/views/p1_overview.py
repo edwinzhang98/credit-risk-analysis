@@ -19,10 +19,10 @@ st.markdown(
 )
 
 kpi_row([
-    ("Cost vs today's policy", f"{m['vs_today'][CH]['total_cost_change']:.0%}", "Total cost of wrong decisions (credit losses on approved bads + margin forgone on declined goods): cost-based rule vs approving every booked loan (a 0.5 cut-off does almost the same here)."),
+    ("Cost vs today's policy", f"{m['vs_today'][CH]['total_cost_change']:.0%}", "Total cost of wrong decisions (modelled credit losses on approved bads + margin forgone on declined goods): cost-based rule vs approving every booked loan (a 0.5 cut-off does almost the same here)."),
     ("Extra approvals at the same bad rate", f"{100 * mv['same_bad_rate']['extra_approvals_pp']:+.1f} pp", f"Challenger vs a rebuilt scorecard applying the same rule, at the scorecard's bad rate: about {mv['same_bad_rate']['extra_approvals_per_month']:,.0f} more booked loans a month."),
     ("Risky tail declined by the rule", f"{room['declined_share']:.1%}", f"These loans defaulted at {room['tail_bad_rate']:.1%} vs {m['data']['test_bad_rate']:.1%} for the whole book."),
-    ("Manual review queue", f"{tt['totals']['reviews_per_month']:,.0f} / month", f"The team's full capacity (5% of applications); {tt['uncapped_review_per_month']:,.0f} a month would be worth reviewing, so the most valuable are kept. Booked-loan volume."),
+    ("Manual review queue", f"{tt['totals']['reviews_per_month']:,.0f} / month", f"The team's full capacity (5% of each month's applications); {tt['uncapped_review_per_month']:,.0f} a month would be worth reviewing, so the most valuable are kept within each month's cap. Booked-loan volume."),
 ])
 
 curves = {CP: load("loss_curve_champion"), CH: load("loss_curve_challenger")}
@@ -30,15 +30,16 @@ st.plotly_chart(charts.loss_curve(curves, rule_points={CH: lc["rule"]["total_cos
 
 st.subheader("The answer in three points")
 st.markdown(f"""
-1. **Set the cut-off from what a wrong decision costs.** A defaulted loan costs about 60% of its amount; a wrongly declined good customer costs the
+1. **Set the cut-off from what a wrong decision costs.** A defaulted loan implies modelled losses of 60% of its amount under the assumed loss rate; a wrongly declined good customer costs the
    product's margin. That puts the break-even PD at 25% for cash loans, 14% for cards and 8% for point-of-sale loans. Applying it declines
    **{room['declined_share']:.1%}** of applications the historical policy approved and lowers the bad rate of the approved book from
    **{m['data']['test_bad_rate']:.2%}** to **{lc['rule']['bad_rate_approved']:.2%}**.
 2. **"More approvals at the same bad rate" needs a better model, plus one test.** Against a rebuilt scorecard applying the same rule, the challenger
-   approves **{100 * mv['same_bad_rate']['extra_approvals_pp']:+.1f} pp** more applicants at the scorecard's bad rate. Approving applicants the
+   approves **{100 * mv['same_bad_rate']['extra_approvals_pp']:+.1f} pp** more applicants at the scorecard's bad rate, matched after the fact on booked test loans.
+   A cut-off fixed in advance must confirm this gain in the trial. Approving applicants the
    lender rejected in the past cannot be evaluated from this data (their outcomes were never observed): a small below-cut-off test is the way to find out.
 3. **Route the grey zone to people, within capacity.** About **{tt['totals']['review_rate']:.1%}** of applications (larger loans near the break-even)
-   go to manual review, the team's full capacity: {tt['uncapped_review_per_month']:,.0f} a month would be worth reviewing, so the most valuable are kept.
+   go to manual review, the team's full capacity of 5% of each month's applications: {tt['uncapped_review_per_month']:,.0f} a month would be worth reviewing, so the most valuable are kept within each month's cap.
    Small point-of-sale loans never qualify, because a review costs more than it can save.
 """)
 
@@ -56,17 +57,17 @@ st.markdown("""
 
 how_to_read(f"""
 **The chart.** Each line shows, for one model, the total cost of wrong decisions if every applicant with a predicted probability of default (PD)
-below the cut-off is approved. "Cost" adds two things: money lost on approved loans that default (credit losses), and profit given up on good
+below the cut-off is approved. "Cost" adds two things: modelled credit losses on approved loans that default, and profit given up on good
 customers who were declined (forgone margin). The comparison that matters is today's policy, which approved every loan in this data; the x marks
-the 0.5 cut-off, which lands in the same place because very few applicants have a PD above 50%; the dot marks the cheapest single cut-off. The dotted line is the cost-based rule, which uses a different break-even per product
+the 0.5 cut-off, which lands in almost the same place because very few applicants have a PD above 50%; the dot marks the cheapest single cut-off. The dotted line is the cost-based rule, which uses a different break-even per product
 and does slightly better than any single cut-off.
 
 **Why it matters.** The "best" threshold is a business decision, not a statistical one. It depends on how much a bad loan costs relative to the
 margin on a good one, which is why the cut-off is derived from those costs (they are assumptions, adjustable on the Threshold Simulator page).
 
-**Champion vs challenger.** The champion is a logistic-regression scorecard, the kind of model most lenders run in production; the challenger is
+**Champion vs challenger.** The champion is a rebuilt logistic-regression scorecard, the long-established approach in application scoring; the challenger is
 a gradient-boosted model (LightGBM). The challenger uses all {m['leakage']['n_features']} inputs; the scorecard uses {m['models']['scorecard_variables']} of them, chosen by
-information value with a correlation filter. Every input was checked to be available at the moment of the decision. Most of the challenger's edge
+information value with a correlation filter. Dated histories were rebuilt as of the decision and clearly leaking fields dropped. Some retained long-window snapshot summaries, measured about 14 days after the decision, still carry residual look-ahead. Most of the challenger's edge
 comes from using more of that information: LightGBM on the scorecard's {m['models']['scorecard_variables']} inputs reaches a Gini of
 {m['models']['gini_test_lgbm_on_scorecard_vars']:.3f}, against {m['models']['gini_test_champion']:.3f} for the scorecard and {m['models']['gini_test_challenger']:.3f} for the challenger.
 

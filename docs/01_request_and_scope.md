@@ -43,4 +43,4 @@
 
 ## Success measures
 
-Approval rate at constant bad rate · expected loss and net expected profit (currency units) · bad rate of swap-ins vs swap-outs · manual-review volume vs capacity · approval-rate ratio by sex and age band (≥ 0.80) · score PSI (< 0.10 stable, 0.10 to 0.25 watch, > 0.25 act).
+Approval rate at constant bad rate · expected loss and net expected profit (currency units) · bad rate of swap-ins vs swap-outs · manual-review volume vs capacity · approval-rate ratio by sex and age band (≥ 0.80) · score PSI (< 0.10 stable, 0.10 to < 0.25 watch, ≥ 0.25 act).

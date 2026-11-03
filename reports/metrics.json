@@ -26,6 +26,11 @@
     "naive_decision_time_profit_gap": 0.0032191897606659303,
     "proxy_auc_sex": 0.6309071360043327,
     "proxy_auc_age50": 0.836616662341206,
+    "proxy_auc_age50_without": {
+      "Years with current employer": 0.7755982372555342,
+      "Product type and share of past cash applications": 0.8329452629284478,
+      "Loan size, payment and income (7 inputs)": 0.8362603930964226
+    },
     "n_unstable_features": 6
   },
   "models": {
@@ -334,70 +339,80 @@
   },
   "three_tier": {
     "capacity_per_month": 3711.3500000000004,
+    "capacity_by_month": {
+      "202001": 4337,
+      "202002": 3759,
+      "202003": 3037
+    },
+    "reviews_by_month": {
+      "202001": 4337,
+      "202002": 3759,
+      "202003": 3037
+    },
     "tiers": [
       {
         "tier": "Auto-approve",
-        "applications": 192817,
-        "share": 0.8658888724228829,
-        "per_month": 64272.333333333336,
-        "bads": 5344,
-        "bad_rate": 0.02771539853851061,
-        "median_amount": 35792.0,
-        "approved": 192817.0,
-        "approved_bads": 5344.0,
-        "credit_loss": 184678166.02458003,
-        "margin": 1146685560.440865,
+        "applications": 192800,
+        "share": 0.8658125300317494,
+        "per_month": 64266.666666666664,
+        "bads": 5334,
+        "bad_rate": 0.02766597510373444,
+        "median_amount": 35791.0,
+        "approved": 192800.0,
+        "approved_bads": 5334.0,
+        "credit_loss": 184366419.34338003,
+        "margin": 1146937368.2970648,
         "forgone_margin": 0.0,
         "review_cost": 0.0,
-        "net_profit": 962007394.416285
+        "net_profit": 962570948.9536848
       },
       {
         "tier": "Manual review",
-        "applications": 11134,
-        "share": 0.04999977546355549,
-        "per_month": 3711.3333333333335,
-        "bads": 1360,
-        "bad_rate": 0.12214837434884139,
-        "median_amount": 96955.0,
-        "approved": 9612.6,
-        "approved_bads": 816.0,
-        "credit_loss": 53893981.143,
-        "margin": 98799296.48901,
-        "forgone_margin": 10977699.609889997,
-        "review_cost": 3340200.0,
-        "net_profit": 41565115.34601001
+        "applications": 11133,
+        "share": 0.04999528473466528,
+        "per_month": 3711.0,
+        "bads": 1369,
+        "bad_rate": 0.12296775352555465,
+        "median_amount": 96638.0,
+        "approved": 9609.0,
+        "approved_bads": 821.4,
+        "credit_loss": 54043899.615720004,
+        "margin": 98524196.02984501,
+        "forgone_margin": 10947132.892204998,
+        "review_cost": 3339900.0,
+        "net_profit": 41140396.41412501
       },
       {
         "tier": "Decline",
-        "applications": 18730,
-        "share": 0.08411135211356155,
-        "per_month": 6243.333333333333,
-        "bads": 3125,
-        "bad_rate": 0.16684463427656165,
+        "applications": 18748,
+        "share": 0.08419218523358526,
+        "per_month": 6249.333333333333,
+        "bads": 3126,
+        "bad_rate": 0.16673778536377212,
         "median_amount": 28000.0,
         "approved": 0.0,
         "approved_bads": 0.0,
         "credit_loss": 0.0,
         "margin": 0.0,
-        "forgone_margin": 36351839.18941499,
+        "forgone_margin": 36405698.510065004,
         "review_cost": 0.0,
         "net_profit": 0.0
       }
     ],
     "totals": {
       "applications": 222681,
-      "approval_rate": 0.9090564529528788,
-      "bad_rate_approved": 0.030430332322940915,
-      "review_rate": 0.04999977546355549,
-      "reviews_per_month": 3711.3333333333335,
-      "credit_loss": 238572147.16758004,
-      "forgone_margin": 47329538.79930499,
-      "review_cost": 3340200.0,
-      "net_profit": 1003572509.762295
+      "approval_rate": 0.9089639439377405,
+      "bad_rate_approved": 0.03041070308138472,
+      "review_rate": 0.04999528473466528,
+      "reviews_per_month": 3711.0,
+      "credit_loss": 238410318.95910004,
+      "forgone_margin": 47352831.402270004,
+      "review_cost": 3339900.0,
+      "net_profit": 1003711345.3678098
     },
     "uncapped_review_per_month": 5987.666666666667,
     "two_tier_net_profit": 991806148.5149848,
-    "uplift_vs_two_tier": 11766361.247310162,
+    "uplift_vs_two_tier": 11905196.852824926,
     "min_amount_for_review": {
       "Cash loan": 6666.666666666666,
       "Point-of-sale loan": 21666.666666666664,
@@ -546,8 +561,8 @@
       {
         "test": "Below-cut-off test",
         "question": "Do applicants just below today's line default at 25% less than the declined tail (16.6% vs 12.5%)?",
-        "loans_needed": 589,
-        "note": "approved test loans; expected net loss \u2248 4,474 CU each (price of information \u2248 2.6M CU)"
+        "loans_needed": 610,
+        "note": "approved test loans; passes if at most 83 default (13.6%), which happens 82% of the time if the true rate is 12.5%; expected net loss \u2248 4,474 CU each on the declined tail's economics (price of information \u2248 2.7M CU, likely more for today's rejects)"
       },
       {
         "test": "Champion / challenger",
@@ -556,9 +571,12 @@
         "note": "approved loans in the challenger arm and 82,176 in the champion arm (20% / 80% of traffic) \u2248 1.5 months of booked-loan volume, then the outcome window"
       }
     ],
-    "below_cutoff_loans_needed": 589,
+    "below_cutoff_loans_needed": 610,
     "cost_per_tail_loan": 4474.047506072867,
-    "price_of_information": 2635213.9810769185,
+    "price_of_information": 2729168.978704449,
+    "below_cutoff_pass_max_defaults": 83,
+    "below_cutoff_pass_max_rate": 0.1360655737704918,
+    "below_cutoff_power_at_target": 0.8221640001916612,
     "champion_challenger_loans_challenger": 20544,
     "champion_challenger_loans_champion": 82176,
     "champion_challenger_months": 1.5251368446058973,
