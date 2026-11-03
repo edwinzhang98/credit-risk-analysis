@@ -1,10 +1,11 @@
 """Build reports/report.html (one self-contained file, opens offline) and the static PNG figures used in the README.
 
 Every number comes from reports/metrics.json or the cached tables written by the notebooks, and every chart is drawn by
-the same functions the dashboard uses (src/charts.py), so the report, the notebooks and the app always agree.
+functions in src/charts.py that the dashboard and notebooks also use, so the report, the notebooks and the app agree.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import date
 from pathlib import Path
@@ -18,6 +19,7 @@ from plotly.offline import get_plotlyjs
 from src import charts
 from src.config import ROOT, load_config
 from src.economics import PRODUCT_NAMES
+from src.labels import COLUMN_LABELS
 
 CH, CP = "Challenger (LightGBM)", "Champion (scorecard)"
 
@@ -42,12 +44,16 @@ def num(x, d=0):
 
 
 def table(df: pd.DataFrame, formats: dict | None = None, index: bool = False) -> str:
-    """Pandas -> compact HTML table with per-column formatting."""
+    """Pandas -> compact HTML table with per-column formatting and readable headers (src/labels.py)."""
     df = df.copy()
     for col, f in (formats or {}).items():
         if col in df:
             df[col] = df[col].map(lambda v, f=f: "" if v is None or (isinstance(v, float) and np.isnan(v)) else f(v))
-    return df.to_html(index=index, classes="tbl", border=0, escape=True)
+    return df.rename(columns=COLUMN_LABELS).to_html(index=index, classes="tbl", border=0, escape=True)
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def fig_html(fig: go.Figure) -> str:
@@ -73,48 +79,15 @@ def build_report(cfg: dict | None = None) -> Path:
     F["monthly"] = fig_html(charts.monthly_volume_bad_rate(L("dq_time_range"), cfg["split"]))
     F["offset"] = fig_html(charts.snapshot_offset_chart(L("dq_snapshot_offset")))
     F["pit"] = fig_html(charts.point_in_time_chart(L("dq_point_in_time")))
-    feat = L("feature_screening")
-    top = feat.head(15).iloc[::-1]
-    f_iv = go.Figure(go.Bar(x=top.iv_train, y=top.label, orientation="h", marker_color=charts.BLUE, width=0.6,
-                            hovertemplate="%{y}<br>IV %{x:.3f}<extra></extra>"))
-    charts.base_layout(f_iv, "Repayment behaviour carries most of the univariate signal",
-                       "Information Value on the training window, top 15 of 90 features (0.1 = medium, 0.3 = strong)", height=470, legend=False)
-    f_iv.update_layout(margin=dict(l=300))
-    F["iv"] = fig_html(f_iv)
-
+    F["iv"] = fig_html(charts.iv_bars(L("feature_screening")))
     abl = L("leakage_ablation")
-    t = abl[abl.split == "test"].reset_index(drop=True)
-    f_abl = go.Figure(go.Bar(x=t.model, y=t.gini, marker_color=[charts.BLUE, charts.ORANGE, charts.NEUTRAL], width=0.5,
-                             text=[f"{v:.3f}" for v in t.gini], textposition="outside", textfont=dict(color=charts.INK)))
-    charts.base_layout(f_abl, f"Used as provided, the snapshot would overstate the model by {100 * (t.gini[1] - t.gini[0]):.1f} Gini points",
-                       "Out-of-time test Gini of the same LightGBM set-up with different inputs", height=400, legend=False)
-    f_abl.update_yaxes(range=[max(0, float(t.gini.min()) - 0.06), float(t.gini.max()) + 0.03], title="Gini")
-    F["ablation"] = fig_html(f_abl)
+    F["ablation"] = fig_html(charts.ablation_dots(abl[abl.split == "test"]))
 
-    cal = L("calibration_test")
-    f_cal = go.Figure()
-    lim = float(max(cal.mean_pd.max(), cal.bad_rate.max())) * 1.08
-    f_cal.add_trace(go.Scatter(x=[0, lim], y=[0, lim], mode="lines", line=dict(color=charts.AXIS, width=1), name="Perfect calibration", hoverinfo="skip"))
-    for name in [CP, CH]:
-        c = cal[cal.model == name]
-        f_cal.add_trace(go.Scatter(x=c.mean_pd, y=c.bad_rate, mode="lines+markers", name=name, line=dict(color=charts.MODEL_COLORS[name], width=2),
-                                   marker=dict(size=8, line=dict(color=charts.SURFACE, width=2))))
-    charts.base_layout(f_cal, "Both models rank well but under-predict the test quarter's higher default level",
-                       "Observed bad rate vs mean predicted PD by PD decile, Jan to Mar 2020", height=430)
-    f_cal.update_xaxes(title="Mean predicted PD", tickformat=".0%", range=[0, lim])
-    f_cal.update_yaxes(title="Observed bad rate", tickformat=".0%", range=[0, lim])
-    F["calibration"] = fig_html(f_cal)
-
+    F["calibration"] = fig_html(charts.calibration_deciles(L("calibration_test")))
     imp = L("shap_global")
     grp = imp.groupby("group").share.sum().sort_values(ascending=False)
     track = float(grp.get("Repayment history", 0) + grp.get("Previous applications", 0))
-    top_s = imp.head(15).iloc[::-1]
-    f_shap = go.Figure(go.Bar(x=top_s.mean_abs_shap, y=top_s.label, orientation="h", marker_color=charts.BLUE, width=0.6,
-                              hovertemplate="%{y}<br>mean |SHAP| %{x:.3f}<extra></extra>"))
-    charts.base_layout(f_shap, f"The client's track record carries {track:.0%} of the challenger's impact; no single input dominates",
-                       "Average absolute impact on the log-odds of default (mean |SHAP|), top 15 inputs", height=500, legend=False)
-    f_shap.update_layout(margin=dict(l=310))
-    F["shap"] = fig_html(f_shap)
+    F["shap"] = fig_html(charts.shap_importance(imp, height=500))
 
     F["breakeven"] = fig_html(charts.breakeven_sensitivity(L("breakeven_sensitivity")))
     rm = m["room"][CH]
@@ -128,7 +101,8 @@ def build_report(cfg: dict | None = None) -> Path:
     trade_fig = charts.tradeoff_curve(trade, pts, x_range=(0.85, 1.0))
     F["tradeoff"] = fig_html(trade_fig)
     swap_rule = L("swap_its_own_costbased_rule")
-    swap_fig = charts.swap_bars(swap_rule, title="Under the recommended policy, swap-outs default about twice as often as swap-ins")
+    swap_fig = charts.swap_bars(swap_rule, subtitle="Champion scorecard with the cost-based rule vs the challenger with the same rule (recommended), out-of-time test; "
+                                                    "bad rate (%) with 95% intervals, axis labels = applications")
     F["swap"] = fig_html(swap_fig)
     tiers = L("tiers")
     F["tiers"] = fig_html(charts.tier_bars(tiers))
@@ -142,24 +116,26 @@ def build_report(cfg: dict | None = None) -> Path:
     F["psi"] = fig_html(charts.monitor_lines(mon, "psi", "The challenger's score PSI stayed below 0.10; the scorecard's crossed it from May 2020",
                                              "Population stability index of each model's PD vs the training window, by decision month (shaded = monitoring window)",
                                              fmt=".3f", bands=((0.10, "investigate 0.10", charts.STATUS["warning"]), (0.25, "act 0.25", charts.STATUS["critical"]))))
-    F["calratio"] = fig_html(charts.monitor_lines(mon, "calibration_ratio", "The PD level drifted: too low before COVID, too high after",
-                                                  "Mean predicted PD ÷ observed bad rate by decision month (1.0 = calibrated)", fmt=".2f",
+    oos = mon[mon.decision_month >= 201911]
+    F["calratio"] = fig_html(charts.monitor_lines(oos, "calibration_ratio", charts.calibration_drift_title(oos),
+                                                  "Mean predicted PD ÷ observed bad rate by decision month (1.0 = calibrated; Nov-Dec 2019 is the calibration window, "
+                                                  "so it sits at 1.0 by construction)" + charts._partial_month_note(L("dq_time_range")), fmt=".2f",
                                                   bands=((0.8, "0.80", charts.STATUS["warning"]), (1.25, "1.25", charts.STATUS["warning"]))))
     F["gini"] = fig_html(charts.monitor_lines(mon[mon.decision_month >= 201911], "gini", "Rank-ordering held up through the shock",
                                               "Gini by decision month, out-of-sample months only (from Nov 2019)", fmt=".3f"))
 
     # static images for README / executive summary (kaleido needs a local Chrome/Chromium; the HTML report does not)
     try:
-        for name, fig, h in [("loss_curve", loss_fig, 470), ("tradeoff_curve", trade_fig, 460), ("swap_set", swap_fig, 380)]:
+        for name, fig, h in [("loss_curve", loss_fig, 470), ("tradeoff_curve", trade_fig, 470), ("swap_set", swap_fig, 420)]:
             fig.write_image(str(figdir / f"{name}.png"), width=1100, height=h, scale=2)
         charts.snapshot_offset_chart(L("dq_snapshot_offset")).write_image(str(figdir / "snapshot_offset.png"), width=1100, height=400, scale=2)
     except Exception as e:  # noqa: BLE001
         print(f"[report] static PNG export skipped ({type(e).__name__}: {e}); install Chrome or run `plotly_get_chrome` to enable it")
 
     T = {}  # tables
-    T["loss_view"] = table(L("loss_view")[["model", "policy", "approval_rate", "bad_rate_approved", "credit_loss", "forgone_margin", "total_cost", "net_profit", "cost_vs_default_0_5"]],
+    T["loss_view"] = table(L("loss_view")[["model", "policy", "approval_rate", "bad_rate_approved", "credit_loss", "forgone_margin", "total_cost", "net_profit", "cost_vs_today"]],
                            {"approval_rate": pct, "bad_rate_approved": lambda v: pct(v, 2), "credit_loss": money, "forgone_margin": money, "total_cost": money,
-                            "net_profit": money, "cost_vs_default_0_5": lambda v: f"{100 * v:+.0f}%"})
+                            "net_profit": money, "cost_vs_today": lambda v: f"{100 * v:+.0f}%"})
     be = L("breakeven")
     T["breakeven"] = table(be[["product_name", "margin_good", "loss_bad", "cost_ratio", "breakeven_pd", "loans", "bad_rate", "median_amount"]],
                            {"margin_good": lambda v: pct(v, 0), "loss_bad": lambda v: pct(v, 0), "cost_ratio": lambda v: f"{v:.1f}×", "breakeven_pd": pct,
@@ -217,9 +193,9 @@ def build_report(cfg: dict | None = None) -> Path:
     lg = L("leakage_ablation_groups").pivot_table(index="model", columns="group", values="gini").reset_index()
     T["leak_groups"] = table(lg, {c: (lambda v: f"{v:.3f}") for c in lg.columns if c != "model"})
     T["dq_rows"] = table(L("dq_row_counts"), {"n_rows": num, "n_cases": num, "share_of_base_cases": pct, "n_orphan_cases": num})
-    T["dq_keys"] = table(L("dq_keys"))
+    T["dq_keys"] = table(L("dq_keys"), {"violations": num, "expected": num})
     T["offset"] = table(L("dq_snapshot_offset"), {"match_rate": pct})
-    T["csi"] = table(L("csi_flags"), {"max_csi": lambda v: f"{v:.2f}"})
+    T["csi"] = table(L("csi_flags").drop(columns="feature"), {"max_csi": lambda v: f"{v:.2f}"})
     T["drift"] = table(L("calibration_drift")[["view", "mean_pd", "observed_bad_rate", "calibration_ratio", "rule_approval_rate", "rule_bad_rate_of_approved", "rule_net_profit"]],
                        {"mean_pd": lambda v: pct(v, 2), "observed_bad_rate": lambda v: pct(v, 2), "calibration_ratio": lambda v: f"{v:.2f}", "rule_approval_rate": pct,
                         "rule_bad_rate_of_approved": lambda v: pct(v, 2), "rule_net_profit": money})
@@ -242,6 +218,20 @@ def build_report(cfg: dict | None = None) -> Path:
         "points": ex.score_champion, "outcome": "defaulted" if ex.target == 1 else "did not default",
     }
     fs, fa = sex.set_index("group"), age.set_index("group")
+    mmi = mm.set_index(["model", "window"]).gini
+    tr = L("dq_time_range").set_index("decision_month")
+    peak = int(tr.bad_rate.idxmax())
+    back = [k for k in tr.index if k > 202004 and tr.loc[k, "n"] >= tr.loc[202003, "n"]]
+    month_name = lambda k: pd.Timestamp(year=int(k) // 100, month=int(k) % 100, day=1).strftime("%B %Y")  # noqa: E731
+    TR = {"first_rate": float(tr.bad_rate.iloc[0]), "peak_rate": float(tr.loc[peak, "bad_rate"]), "peak_month": month_name(peak),
+          "mar_n": float(tr.loc[202003, "n"]), "apr_n": float(tr.loc[202004, "n"]), "drop": float(1 - tr.loc[202004, "n"] / tr.loc[202003, "n"]),
+          "back_month": month_name(back[0]) if back else "the end of the data"}
+    prof, swr = L("swap_profile").set_index("cell"), swap_rule.set_index("cell")
+    out_c, in_c = "Swap-out (approved -> declined)", "Swap-in (declined -> approved)"
+    SW = {"out_n": float(swr.loc[out_c, "applications"]), "out_rate": float(swr.loc[out_c, "bad_rate"]), "in_n": float(swr.loc[in_c, "applications"]),
+          "in_rate": float(swr.loc[in_c, "bad_rate"]), "in_pos": float(prof.loc["Swap-in", "share_pos"]), "out_pos": float(prof.loc["Swap-out", "share_pos"]),
+          "in_new": float(prof.loc["Swap-in", "share_new_to_lender"]), "out_new": float(prof.loc["Swap-out", "share_new_to_lender"]),
+          "in_med": float(prof.loc["Swap-in", "median_amount"]), "out_med": float(prof.loc["Swap-out", "median_amount"])}
     notebooks = [(n, f"{n}.html") for n in ["01_data_audit", "02_feature_eng", "03_modeling", "04_threshold_and_strategy"]]
 
     env = Environment(loader=FileSystemLoader(str(ROOT / "src" / "templates")), autoescape=False)
@@ -251,7 +241,11 @@ def build_report(cfg: dict | None = None) -> Path:
         grp=grp.to_dict(), fs=fs, fa=fa, notebooks=notebooks, mon=mon, imp=imp, U=U, cc=cc,
         psi_cp_max=float(mon[(mon.model == CP) & (mon.decision_month >= 202004)].psi.max()),
         psi_ch_max=float(mon[(mon.model == CH) & (mon.decision_month >= 202004)].psi.max()),
+        gini_train_ch=float(mmi[(CH, "train")]), gini_valid_ch=float(mmi[(CH, "valid")]),
+        uncapped_reviews=float(m["three_tier"]["uncapped_review_per_month"]), TR=TR, SW=SW,
     )
+    # freshness stamp: tests/test_docs_consistency.py checks that the report was built from the current metrics and template
+    html += f"\n<!-- built-from metrics.json sha256={sha256(reports / 'metrics.json')} template sha256={sha256(ROOT / 'src' / 'templates' / 'report.html.j2')} -->\n"
     out = reports / "report.html"
     out.write_text(html)
     return out

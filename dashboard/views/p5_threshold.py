@@ -2,10 +2,10 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from common import base_economics, how_to_read, load, page_header
+from common import base_economics, base_review, how_to_read, load, page_header
 from src import charts
 from src.economics import PRODUCT_NAMES, Economics
-from src.strategy import approve_ev_positive, curve_by_threshold, evaluate_policy
+from src.strategy import approve_ev_positive, assign_tiers, curve_by_threshold, evaluate_policy
 
 page_header("Cost-based threshold simulator", "Which cut-off minimises the cost of wrong decisions, and how sensitive is it to what we assume a bad loan costs?")
 
@@ -53,16 +53,31 @@ table = pd.DataFrame({
 })
 st.dataframe(table, hide_index=True, use_container_width=True)
 
-fig = charts.loss_curve(curves, rule_points={model: rule["total_cost"]}, baseline_cost=today["total_cost"],
+fig = charts.loss_curve(curves, rule_points={model: rule["total_cost"]}, baseline_cost=today["total_cost"], headline=model,
                         title=f"With these assumptions the cheapest single cut-off is PD {best.threshold:.1%} ({model.split(' (')[0].lower()})",
                         subtitle="Credit losses + forgone margin (million CU) by PD cut-off, out-of-time test Jan to Mar 2020; vertical line = your cut-off")
 fig.add_vline(x=cut, line=dict(color=charts.INK_2, width=1))
 st.plotly_chart(fig, use_container_width=True)
 
+# review volume: the three-tier version of the cost-based rule under the same cost assumptions (review assumptions from config.yaml)
+rev = base_review()
+cap_n = rev.capacity_share * len(T)
+want = assign_tiers(p, g, l, rev, capacity=None)
+keep = assign_tiers(p, g, l, rev, capacity=cap_n)
+months = T.decision_month.nunique() if "decision_month" in T else 3
+r1, r2, r3 = st.columns(3)
+r1.metric("Worth a manual review", f"{(want == 1).sum() / months:,.0f} / month", help="Applications where a review beats both approving and declining, "
+          "under these cost assumptions and the review assumptions in config.yaml (300 CU a case, reviewer declines 40% of bad and 10% of good applicants).")
+r2.metric("Reviewed within capacity", f"{(keep == 1).sum() / months:,.0f} / month", help=f"Capacity: {cap_n / months:,.0f} reviews a month (5% of applications); the most valuable are kept.")
+r3.metric("Auto-decided because of the cap", f"{round((want == 1).sum() / months) - round((keep == 1).sum() / months):,.0f} / month", help="Sent to approve or decline by the rule instead. Volumes are booked-loan volumes.")
+
 how_to_read("""
 **The cost matrix behind the chart.** Every decision can be wrong in two ways. Approving someone who then defaults costs the part of the
 loan that is never recovered (exposure at default × loss given default, about 60% of the amount in the base case). Declining someone who would
 have repaid costs the profit that loan would have made (its margin). The total cost of wrong decisions adds the two over all applications.
+
+**Review volume.** The three numbers under the chart are the manual-review queue of the three-tier version of the cost-based rule: how many
+applications a month are worth a review under these cost assumptions, and how many fit in the team's capacity (Strategy page for the details).
 
 **Why the cut-off sits far below 50%.** Today's policy approved every loan in this book, and a 0.5 cut-off would do almost the same: a PD of
 0.5 is a coin flip and very few applicants are that risky, so it pays for the whole risky tail. Because a bad loan costs several times what a good loan earns, it pays to decline long before 50%.

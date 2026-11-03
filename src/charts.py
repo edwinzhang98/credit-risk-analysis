@@ -100,7 +100,7 @@ def pct(x: float, digits: int = 1) -> str:
 # ---------------------------------------------------------------------------------------------------------------------
 # Data audit
 # ---------------------------------------------------------------------------------------------------------------------
-SPLIT_LABELS = {"train": "Train", "valid": "Valid", "test": "OOT test", "monitor": "Monitoring (COVID period)"}
+SPLIT_LABELS = {"train": "Train", "valid": "Valid", "test": "OOT test", "monitor": "Monitoring (Apr-Oct 2020)"}
 
 
 def _month_label(m) -> str:
@@ -127,8 +127,9 @@ def monthly_volume_bad_rate(monthly: pd.DataFrame, split_ranges: dict | None = N
             fig.add_vrect(x0=_month_label(a), x1=_month_label(b), fillcolor="#efeee9", opacity=0.6, line_width=0, layer="below")
             fig.add_annotation(x=_month_label(a), y=1.06, yref="y domain", text=SPLIT_LABELS.get(name, name), showarrow=False, xanchor="left",
                                font=dict(size=10.5, color=INK_2), row=1, col=1)
-    base_layout(fig, title or "Bad rate rose through 2019, then volume and bad rate both fell from April 2020",
-                "Loans per decision month and share that defaulted (%); shaded = validation, test and monitoring windows", height=540, legend=False)
+    base_layout(fig, title or _monthly_title(monthly),
+                "Loans per decision month and share that defaulted (%); shaded = validation, test and monitoring windows" + _partial_month_note(monthly),
+                height=540, legend=False)
     fig.update_yaxes(tickformat=",.0f", row=1, col=1)
     fig.update_yaxes(tickformat=".1%", rangemode="tozero", row=2, col=1)
     fig.update_xaxes(tickangle=-45, tickfont=dict(size=10.5))
@@ -137,7 +138,44 @@ def monthly_volume_bad_rate(monthly: pd.DataFrame, split_ranges: dict | None = N
     return fig
 
 
+def _partial_month_note(monthly: pd.DataFrame) -> str:
+    """'; 2020-10 covers 1 to 5 October only' when the last month in the data is incomplete."""
+    if "last_day" not in monthly or monthly.empty:
+        return ""
+    last = monthly.iloc[-1]
+    d = pd.Timestamp(last["last_day"])
+    if d.day < d.days_in_month:
+        return f"; {_month_label(last['decision_month'])} covers 1 to {d.day} {d.strftime('%B')} only"
+    return ""
+
+
+def _monthly_title(monthly: pd.DataFrame) -> str:
+    """Takeaway for the monthly chart, computed from the data (peak bad rate, the April 2020 break, recovery of volume)."""
+    try:
+        t = monthly.set_index("decision_month")
+        peak = t.bad_rate.idxmax()
+        pre, post = t.loc[202001:202003], t.loc[202004:]
+        ratio = post.bads.sum() / post.n.sum() / (pre.bads.sum() / pre.n.sum())
+        fall = "halved" if 0.4 <= ratio <= 0.6 else f"fell to {post.bads.sum() / post.n.sum():.1%}"
+        drop = 1 - t.loc[202004, "n"] / t.loc[202003, "n"]
+        back = [m for m in post.index if m > 202004 and t.loc[m, "n"] >= t.loc[202003, "n"]]
+        vol = f"volume fell {drop:.0%} in April" + (f" and was back to March's level by {pd.Timestamp(year=back[0] // 100, month=back[0] % 100, day=1).strftime('%B')}" if back else "")
+        return f"Bad rate peaked at {t.loc[peak, 'bad_rate']:.1%} ({_month_label(peak)}) and {fall} from April 2020; {vol}"
+    except (KeyError, ValueError, ZeroDivisionError):
+        return "Loans and bad rate by decision month"
+
+
 PROCESS_DATES = {"responsedate_1012D", "responsedate_4527233D", "responsedate_4917613D", "assignmentdate_238D", "assignmentdate_4527235D", "assignmentdate_4955616D"}
+
+
+FIELD_LABELS = {
+    "lastactivateddate_801D": "Last contract activation", "maxdpdinstldate_3546855D": "Instalment with the worst lateness",
+    "creationdate_885D": "Earlier application created", "dtlastpmt_581D": "Last payment", "lastapprdate_640D": "Last approval",
+    "firstnonzeroinstldate_307D": "First instalment of an earlier loan", "datelastunpaid_3546854D": "Last unpaid instalment",
+    "lastrejectdate_50D": "Last rejection", "lastdelinqdate_224D": "Last delinquency", "firstclxcampaign_1125D": "First marketing campaign",
+    "lastapplicationdate_877D": "Last application", "dtlastpmtallstes_3545839D": "Last payment, all contracts",
+    "dtlastpmtallstes_4499206D": "Last payment, all contracts", "validfrom_1069D": "Start of the active campaign",
+}
 
 
 def point_in_time_chart(pit: pd.DataFrame, min_share: float = 0.01, min_n: int = 50_000, top: int = 14) -> go.Figure:
@@ -148,16 +186,19 @@ def point_in_time_chart(pit: pd.DataFrame, min_share: float = 0.01, min_n: int =
     """
     d = pit[(pit.share_after_decision >= min_share) & pit.bad_rate_if_on_or_before.notna() & (pit.n_non_null >= min_n) & ~pit.field.isin(PROCESS_DATES)].copy()
     d = d.sort_values("share_after_decision", ascending=True).tail(top)
-    d["label"] = d["field"] + "  (" + (100 * d["share_after_decision"]).round(1).astype(str) + "% after)"
+    d["label"] = [f"{FIELD_LABELS.get(f, f)}{' (per earlier application)' if t == 'applprev_1' else ''}  ({100 * s:.1f}% after)"
+                  for f, t, s in zip(d.field, d.source_table, d.share_after_decision)]
     fig = go.Figure()
     for i, r in enumerate(d.itertuples()):
         fig.add_trace(go.Scatter(x=[r.bad_rate_if_on_or_before, r.bad_rate_if_after], y=[r.label, r.label], mode="lines",
                                  line=dict(color=AXIS, width=2), hoverinfo="skip", showlegend=False))
-    fig.add_trace(go.Scatter(x=d.bad_rate_if_on_or_before, y=d.label, mode="markers", name="Event on or before the decision",
-                             marker=dict(color=BLUE, size=10, line=dict(color=SURFACE, width=2)), hovertemplate="%{y}<br>bad rate %{x:.2%}<extra>on/before</extra>"))
-    fig.add_trace(go.Scatter(x=d.bad_rate_if_after, y=d.label, mode="markers", name="Event after the decision (not knowable at decision time)",
-                             marker=dict(color=ORANGE, size=10, line=dict(color=SURFACE, width=2)), hovertemplate="%{y}<br>bad rate %{x:.2%}<extra>after</extra>"))
-    base_layout(fig, "Where the client's 'last event' happened after the decision, the loan defaulted more often",
+    fig.add_trace(go.Scatter(x=d.bad_rate_if_on_or_before, y=d.label, mode="markers", name="Event on or before the decision", customdata=d.field,
+                             marker=dict(color=BLUE, size=10, line=dict(color=SURFACE, width=2)), hovertemplate="%{y}<br>%{customdata}<br>bad rate %{x:.2%}<extra>on/before</extra>"))
+    fig.add_trace(go.Scatter(x=d.bad_rate_if_after, y=d.label, mode="markers", name="Event after the decision (not knowable at decision time)", customdata=d.field,
+                             marker=dict(color=ORANGE, size=10, line=dict(color=SURFACE, width=2)), hovertemplate="%{y}<br>%{customdata}<br>bad rate %{x:.2%}<extra>after</extra>"))
+    higher = int((d.bad_rate_if_after > d.bad_rate_if_on_or_before).sum())
+    lead = f"For all {len(d)} dated fields" if higher == len(d) else f"For {higher} of {len(d)} dated fields"
+    base_layout(fig, f"{lead}, loans whose date falls after the decision defaulted more often",
                 "Bad rate (%) by whether the field's date is after the decision date; brackets = share of dates that fall after it", height=560)
     fig.update_xaxes(tickformat=".0%", title="Bad rate", showgrid=True, gridcolor=GRID, rangemode="tozero")
     fig.update_yaxes(showgrid=False, tickfont=dict(size=11, color=INK_2))
@@ -171,14 +212,15 @@ def snapshot_offset_chart(off: pd.DataFrame) -> go.Figure:
     d["offset"] = d.test.str.extract(r"\+ (\d+)d").astype(int)[0]
     d = d.sort_values("offset")
     d["label"] = np.where(d.offset == 0, "Decision date<br>(point in time)", "Decision date<br>+ " + d.offset.astype(str) + " days")
-    colors = [BLUE if o == 0 else NEUTRAL for o in d.offset]
-    fig = go.Figure(go.Bar(x=d.label, y=d.match_rate, marker_color=colors, marker_line_width=0, width=0.45,
-                           text=[f"{v:.1%}" for v in d.match_rate], textposition="outside", textfont=dict(color=INK),
-                           hovertemplate="%{x}<br>match rate %{y:.2%}<extra></extra>"))
+    colors = [BLUE if o == 0 else INK_2 for o in d.offset]
+    fig = go.Figure(go.Scatter(x=d.label, y=d.match_rate, mode="markers+text", marker=dict(color=colors, size=16, line=dict(color=SURFACE, width=2)),
+                               text=[f"{v:.1%}" for v in d.match_rate], textposition="top center", textfont=dict(color=INK, size=12.5),
+                               hovertemplate="%{x}<br>match rate %{y:.2%}<extra></extra>"))
     base_layout(fig, "The provided '30-day applications' count includes days after the decision",
-                "Exact match between the provided count and our recount over the 30 days ending on each date (% of loans)", height=400, legend=False)
+                "Exact match between the provided count and our recount over the 30 days ending on each date (% of loans; dots, axis starts at 85%)",
+                height=400, legend=False)
     fig.update_xaxes(tickangle=0)
-    fig.update_yaxes(tickformat=".0%", range=[0.85, 1.0], title="Exact match rate")
+    fig.update_yaxes(tickformat=".0%", range=[0.85, 1.005], title="Exact match rate")
     return fig
 
 
@@ -248,24 +290,41 @@ def tradeoff_curve(curves: dict, points: list[dict] | None = None, x_range=(0.80
         fig.add_trace(_marker(p["x"], p["y"], p["label"], p.get("color", INK), text=p.get("text"), symbol=p.get("symbol", "circle"), size=11,
                               textpos=p.get("textpos", "top left"), hover=f"{p['label']}<br>approval %{{x:.1%}} · bad rate %{{y:.2%}}<extra></extra>"))
     base_layout(fig, title or "At any approval rate the challenger's approved book has a lower bad rate",
-                "Bad rate of the approved book (%) vs share of applications approved, out-of-time test Jan to Mar 2020", height=height)
+                "Bad rate of the approved book (%) vs share approved, out-of-time test Jan to Mar 2020. Lines = one PD cut-off for all products; "
+                "the cost-based rule uses a different cut-off per product, so its dots sit just off the lines", height=height)
     fig.update_xaxes(title="Approval rate (share of booked-population applications)", tickformat=".0%", range=list(x_range))
     fig.update_yaxes(title="Bad rate of approved loans", tickformat=".1%")
     return fig
 
 
-def swap_bars(swap: pd.DataFrame, height: int = 380, title: str | None = None) -> go.Figure:
-    """Bad rate (with 95% CI) of each swap-set cell; bar label shows the number of applications."""
+def _swap_title(d: pd.DataFrame) -> str:
+    """Takeaway comparing swap-outs with swap-ins, computed from the cells (falls back to a neutral label)."""
+    out = d[d.cell.str.startswith("Swap-out")]
+    inn = d[d.cell.str.startswith("Swap-in")]
+    if out.empty or inn.empty:
+        return "Bad rate by swap-set cell"
+    o, i = out.iloc[0], inn.iloc[0]
+    if i.bad_rate > 0 and o.bad_rate_ci_low > i.bad_rate_ci_high:
+        return f"Swap-outs default {o.bad_rate / i.bad_rate:.1f} times as often as swap-ins ({o.bad_rate:.1%} vs {i.bad_rate:.1%})"
+    if o.bad_rate > i.bad_rate:
+        return f"Swap-outs default a little more often than swap-ins ({o.bad_rate:.1%} vs {i.bad_rate:.1%}; intervals overlap)"
+    return f"Swap-ins default as often as swap-outs or more ({i.bad_rate:.1%} vs {o.bad_rate:.1%}): this swap does not pay"
+
+
+def swap_bars(swap: pd.DataFrame, height: int = 400, title: str | None = None, subtitle: str | None = None) -> go.Figure:
+    """Bad rate (with 95% CI) of each swap-set cell; the category label carries the number of applications."""
     d = swap[swap.applications > 0].copy()
+    xlab = [c.replace(" (", "<br>(") + f"<br>{n:,.0f} apps" for c, n in zip(d.cell, d.applications)]
     fig = go.Figure(go.Bar(
-        x=d.cell.str.replace(" (", "<br>(", regex=False), y=d.bad_rate, marker_color=[SWAP_COLORS.get(c, NEUTRAL) for c in d.cell], width=0.5,
+        x=xlab, y=d.bad_rate, marker_color=[SWAP_COLORS.get(c, NEUTRAL) for c in d.cell], width=0.5,
         error_y=dict(type="data", symmetric=False, array=d.bad_rate_ci_high - d.bad_rate, arrayminus=d.bad_rate - d.bad_rate_ci_low, color=INK_2, thickness=1, width=4),
-        text=[f"{n:,.0f} apps" for n in d.applications], textposition="outside", textfont=dict(color=INK_2, size=11),
         customdata=np.c_[d.applications, d.share, d.bads, d.loan_amount / 1e6],
         hovertemplate="%{x}<br>bad rate %{y:.2%}<br>%{customdata[0]:,.0f} applications (%{customdata[1]:.1%})<br>%{customdata[2]:,.0f} bads · %{customdata[3]:.1f}M CU<extra></extra>"))
-    base_layout(fig, title or "Swap-outs are far riskier than swap-ins", "Bad rate by swap-set cell (%), 95% intervals; labels = applications", height=height, legend=False)
+    base_layout(fig, title or _swap_title(d), subtitle or "Bad rate by swap-set cell (%) with 95% intervals; axis labels give the number of applications",
+                height=height, legend=False)
     fig.update_yaxes(tickformat=".0%", rangemode="tozero", title="Bad rate")
     fig.update_xaxes(tickangle=0)
+    fig.update_layout(margin=dict(b=96))
     return fig
 
 
@@ -284,15 +343,22 @@ def headroom_chart(h: pd.DataFrame, book_bad_rate: float, tail_bad_rate: float, 
     return fig
 
 
-def tier_bars(tiers: pd.DataFrame, height: int = 360) -> go.Figure:
+def tier_bars(tiers: pd.DataFrame, height: int = 360, title: str | None = None) -> go.Figure:
     """Applications per month and bad rate by tier (two panels, one axis each)."""
     fig = make_subplots(rows=1, cols=2, subplot_titles=("Applications per month", "Bad rate before review"), horizontal_spacing=0.14)
     colors = [TIER_COLORS[t] for t in tiers.tier]
     fig.add_trace(go.Bar(x=tiers.tier, y=tiers.per_month, marker_color=colors, width=0.5, text=[f"{v:,.0f}" for v in tiers.per_month], textposition="outside",
                          textfont=dict(color=INK_2), hovertemplate="%{x}<br>%{y:,.0f} per month<extra></extra>"), row=1, col=1)
-    fig.add_trace(go.Bar(x=tiers.tier, y=tiers.bad_rate, marker_color=colors, width=0.5, text=[f"{v:.1%}" for v in tiers.bad_rate], textposition="outside",
-                         textfont=dict(color=INK_2), hovertemplate="%{x}<br>bad rate %{y:.2%}<extra></extra>"), row=1, col=2)
-    base_layout(fig, "Review is reserved for the grey zone", "Volume per month and bad rate by tier, out-of-time test window", height=height, legend=False)
+    fig.add_trace(go.Bar(x=tiers.tier, y=tiers.bad_rate, marker_color=colors, width=0.5, text=["–" if pd.isna(v) else f"{v:.1%}" for v in tiers.bad_rate],
+                         textposition="outside", textfont=dict(color=INK_2), hovertemplate="%{x}<br>bad rate %{y:.2%}<extra></extra>"), row=1, col=2)
+    if title is None:
+        t = tiers.set_index("tier")
+        if t.loc["Manual review", "applications"] == 0:
+            title = "No application goes to manual review with these settings"
+        else:
+            title = (f"Review takes {t.loc['Manual review', 'share']:.1%} of applications, between auto-approve "
+                     f"({t.loc['Auto-approve', 'bad_rate']:.1%} bad rate) and decline ({t.loc['Decline', 'bad_rate']:.1%})")
+    base_layout(fig, title, "Applications per month and bad rate before review, by tier (out-of-time test window)", height=height, legend=False)
     fig.update_xaxes(tickangle=0)
     fig.update_yaxes(rangemode="tozero")
     fig.update_yaxes(tickformat=".0%", row=1, col=2)
@@ -302,7 +368,7 @@ def tier_bars(tiers: pd.DataFrame, height: int = 360) -> go.Figure:
     return fig
 
 
-def fairness_bars(g: pd.DataFrame, group_label: str, height: int = 360, title: str | None = None) -> go.Figure:
+def fairness_bars(g: pd.DataFrame, group_label: str, height: int = 360, title: str | None = None, subtitle: str | None = None) -> go.Figure:
     """Approval-rate ratio by group vs the four-fifths line (one panel) and approved-book bad rate (second panel)."""
     fig = make_subplots(rows=1, cols=2, subplot_titles=("Approval-rate ratio vs most-approved group", "Bad rate of approved loans"), horizontal_spacing=0.14)
     fig.add_trace(go.Bar(x=g.group, y=g.approval_rate_ratio, marker_color=BLUE, width=0.5, text=[f"{v:.2f}" for v in g.approval_rate_ratio], textposition="outside",
@@ -315,7 +381,7 @@ def fairness_bars(g: pd.DataFrame, group_label: str, height: int = 360, title: s
                                       arrayminus=g.bad_rate_approved - g.bad_rate_approved_ci_low, color=INK_2, thickness=1, width=4),
                          hovertemplate="%{x}<br>bad rate %{y:.2%}<extra></extra>"), row=1, col=2)
     base_layout(fig, title or f"Approval rates by {group_label} stay above the four-fifths screen",
-                f"Recommended policy on the out-of-time test window, by {group_label}", height=height, legend=False)
+                subtitle or f"Out-of-time test window (Jan to Mar 2020), by {group_label}", height=height, legend=False)
     fig.update_yaxes(range=[0, 1.12], row=1, col=1)
     fig.update_yaxes(tickformat=".0%", rangemode="tozero", row=1, col=2)
     for a in fig.layout.annotations[:2]:
@@ -383,6 +449,20 @@ def segment_bad_rate(t: pd.DataFrame, segment: str, overall: float | None = None
     return fig
 
 
+def _trend_title(t: pd.DataFrame, segment: str) -> str:
+    """Says whether the riskiest group stays the riskiest month after month."""
+    piv = t.pivot_table(index="decision_month", columns="value", values="bad_rate", observed=True)
+    if piv.shape[1] < 2 or piv.empty:
+        return f"{segment}: bad rate by month"
+    top = piv.idxmax(axis=1)
+    lead, k = top.value_counts().index[0], int(top.value_counts().iloc[0])
+    if k == len(top):
+        return f"{segment}: {lead} has the highest bad rate in every month"
+    if k >= 0.8 * len(top):
+        return f"{segment}: {lead} has the highest bad rate in {k} of {len(top)} months"
+    return f"{segment}: no group has the highest bad rate in most months"
+
+
 def segment_trend(t: pd.DataFrame, segment: str, height: int = 380) -> go.Figure:
     """Monthly bad rate per segment value (t: decision_month, value, bad_rate, loans); categorical colours in fixed order."""
     order = [BLUE, ORANGE, AQUA, YELLOW, MAGENTA, GREEN, VIOLET, RED]
@@ -390,7 +470,7 @@ def segment_trend(t: pd.DataFrame, segment: str, height: int = 380) -> go.Figure
     for i, (val, g) in enumerate(t.groupby("value", sort=False)):
         fig.add_trace(go.Scatter(x=[_month_label(m) for m in g.decision_month], y=g.bad_rate, mode="lines", name=str(val), line=dict(color=order[i % 8], width=2),
                                  customdata=g.loans, hovertemplate="%{x}<br>" + str(val) + ": %{y:.2%} (%{customdata:,.0f} loans)<extra></extra>"))
-    base_layout(fig, f"{segment}: bad rate by month", "Bad rate by decision month for the largest segments (%)", height=height)
+    base_layout(fig, _trend_title(t, segment), "Bad rate by decision month for the largest segments (%)", height=height)
     fig.update_layout(margin=dict(b=80))
     fig.update_yaxes(tickformat=".1%", rangemode="tozero")
     fig.update_xaxes(tickangle=-45, tickfont=dict(size=10.5))
@@ -404,11 +484,120 @@ def explanation_bars(contrib: pd.Series, labels: dict, values: dict, top: int = 
     fig = go.Figure(go.Bar(x=c.values, y=ylabels, orientation="h", marker_color=[ORANGE if v > 0 else BLUE for v in c.values], width=0.6,
                            hovertemplate="%{y}<br>impact on log-odds %{x:+.3f}<extra></extra>"))
     fig.add_vline(x=0, line=dict(color=AXIS, width=1))
-    base_layout(fig, title or "What pushed this applicant's risk up (orange) or down (blue)",
-                f"Contribution of each input to the log-odds of default vs the average applicant (SHAP), top {top}", height=height, legend=False)
+    if title is None:
+        up, down = contrib[contrib > 0], contrib[contrib < 0]
+        if len(up):
+            f = up.idxmax()
+            title = f"{labels.get(f, f)} ({values.get(f, '')}) raised this applicant's risk the most"
+        elif len(down):
+            f = down.idxmin()
+            title = f"{labels.get(f, f)} ({values.get(f, '')}) lowered this applicant's risk the most"
+        else:
+            title = "No input moved this applicant's risk"
+    base_layout(fig, title,
+                f"Contribution of each input to the log-odds of default vs the average applicant (SHAP; orange raises risk, blue lowers it), top {top}",
+                height=height, legend=False)
     fig.update_layout(margin=dict(l=380))
     fig.update_xaxes(title="Impact on log-odds of default", zeroline=False)
     return fig
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Model charts shared by the app and the report
+# ---------------------------------------------------------------------------------------------------------------------
+def calibration_deciles(cal: pd.DataFrame, height: int = 430, title: str | None = None) -> go.Figure:
+    """Observed bad rate vs mean predicted PD by PD decile, one line per model (cal: model, n, bads, mean_pd, bad_rate)."""
+    fig = go.Figure()
+    lim = float(max(cal.mean_pd.max(), cal.bad_rate.max())) * 1.08
+    fig.add_trace(go.Scatter(x=[0, lim], y=[0, lim], mode="lines", line=dict(color=AXIS, width=1), name="Perfect calibration", hoverinfo="skip"))
+    ratios = {}
+    for name in [n for n in MODEL_COLORS if n in set(cal.model)]:
+        c = cal[cal.model == name]
+        ratios[name] = float((c.mean_pd * c.n).sum() / c.bads.sum())
+        err = (dict(type="data", symmetric=False, array=c.ci_high - c.bad_rate, arrayminus=c.bad_rate - c.ci_low, color=MODEL_COLORS[name], thickness=1, width=0)
+               if {"ci_low", "ci_high"} <= set(c.columns) else None)
+        fig.add_trace(go.Scatter(x=c.mean_pd, y=c.bad_rate, mode="lines+markers", name=name, line=dict(color=MODEL_COLORS[name], width=2), error_y=err,
+                                 marker=dict(size=8, line=dict(color=SURFACE, width=2)), hovertemplate="predicted %{x:.2%}<br>observed %{y:.2%}<extra>" + name + "</extra>"))
+    if title is None:
+        lo, hi = min(ratios.values()), max(ratios.values())
+        title = (f"Both models rank well but under-predict the test quarter: mean PD is {1 - hi:.0%} to {1 - lo:.0%} below the observed bad rate"
+                 if hi < 1 else "Observed bad rate vs predicted PD by decile")
+    base_layout(fig, title, "Observed bad rate vs mean predicted PD by PD decile, out-of-time test Jan to Mar 2020 (%; 95% intervals)", height=height)
+    fig.update_xaxes(title="Mean predicted PD", tickformat=".0%", range=[0, lim])
+    fig.update_yaxes(title="Observed bad rate", tickformat=".0%", range=[0, lim])
+    return fig
+
+
+def shap_importance(imp: pd.DataFrame, top: int = 15, height: int = 520) -> go.Figure:
+    """Mean |SHAP| of the top inputs (imp: feature, label, group, mean_abs_shap, share), sorted by impact."""
+    grp = imp.groupby("group").share.sum()
+    track = float(grp.get("Repayment history", 0) + grp.get("Previous applications", 0))
+    t = imp.head(top).iloc[::-1]
+    fig = go.Figure(go.Bar(x=t.mean_abs_shap, y=t.label, orientation="h", marker_color=BLUE, width=0.6, customdata=np.c_[t.group, t.share],
+                           hovertemplate="%{y}<br>%{customdata[0]}<br>mean |SHAP| %{x:.3f} (%{customdata[1]:.1%} of total)<extra></extra>"))
+    base_layout(fig, f"The client's track record carries {track:.0%} of the challenger's impact; the largest single input carries {imp.share.iloc[0]:.0%}",
+                f"Average absolute impact on the log-odds of default (mean |SHAP|), top {top} inputs, out-of-time test sample", height=height, legend=False)
+    fig.update_layout(margin=dict(l=310))
+    fig.update_xaxes(title="Mean |SHAP| (log-odds)")
+    return fig
+
+
+def iv_bars(feat: pd.DataFrame, top: int = 15, height: int = 470) -> go.Figure:
+    """Information Value on the training window for the top inputs (feat: label, group, iv_train), sorted by IV."""
+    t = feat.sort_values("iv_train", ascending=False).head(top)
+    lead = t.group.value_counts()
+    title = f"{lead.index[0]} inputs make up {lead.iloc[0]} of the {top} strongest univariate signals"
+    t = t.iloc[::-1]
+    fig = go.Figure(go.Bar(x=t.iv_train, y=t.label, orientation="h", marker_color=BLUE, width=0.6, customdata=t.group,
+                           hovertemplate="%{y}<br>%{customdata}<br>IV %{x:.3f}<extra></extra>"))
+    base_layout(fig, title, f"Information Value on the training window, top {top} of {len(feat)} features (0.1 = medium, 0.3 = strong)", height=height, legend=False)
+    fig.update_layout(margin=dict(l=300))
+    fig.update_xaxes(title="Information Value")
+    return fig
+
+
+def ablation_dots(t: pd.DataFrame, height: int = 400) -> go.Figure:
+    """Out-of-time Gini of the same LightGBM set-up with different inputs (t: model, gini; first row = ours). Dots, so a zoomed axis is honest."""
+    t = t.reset_index(drop=True)
+    colors = [BLUE, ORANGE, NEUTRAL][: len(t)]
+    fig = go.Figure(go.Scatter(x=t.model, y=t.gini, mode="markers+text", marker=dict(color=colors, size=16, line=dict(color=SURFACE, width=2)),
+                               text=[f"{v:.3f}" for v in t.gini], textposition="top center", textfont=dict(color=INK, size=12.5),
+                               hovertemplate="%{x}<br>Gini %{y:.3f}<extra></extra>"))
+    base_layout(fig, f"Used as provided, the snapshot would overstate the model by {100 * (t.gini[1] - t.gini[0]):.1f} Gini points",
+                "Out-of-time test Gini of the same LightGBM set-up with different inputs (dots; axis zoomed to the range shown)", height=height, legend=False)
+    fig.update_yaxes(range=[float(t.gini.min()) - 0.03, float(t.gini.max()) + 0.03], title="Gini")
+    fig.update_xaxes(tickangle=0)
+    return fig
+
+
+WINDOW_LABELS = {"train": "Train (in-sample)", "valid": "Validation", "test": "Out-of-time test", "monitor": "Monitoring (Apr-Oct 2020)"}
+
+
+def gini_by_window(met: pd.DataFrame, height: int = 430) -> go.Figure:
+    """Gini by time window and model (met: model, window, gini). The training window is in-sample and flagged as such."""
+    piv = met.pivot_table(index="window", columns="model", values="gini").reindex(list(WINDOW_LABELS))
+    fig = go.Figure()
+    for name in [n for n in MODEL_COLORS if n in piv.columns][::-1]:
+        fig.add_trace(go.Bar(x=[WINDOW_LABELS[w] for w in piv.index], y=piv[name], name=name, marker_color=MODEL_COLORS[name],
+                             hovertemplate="%{x}: Gini %{y:.3f}<extra>" + name + "</extra>"))
+    oos = piv.drop(index="train")
+    ch, cp = "Challenger (LightGBM)", "Champion (scorecard)"
+    title = ("The challenger ranks better in every out-of-sample window" if (oos[ch] > oos[cp]).all()
+             else "Gini by window: neither model leads in every out-of-sample window")
+    base_layout(fig, title, "Gini by time window (rank-ordering; the money view decides). Training bars are in-sample and flatter the challenger", height=height)
+    fig.update_layout(barmode="group", bargap=0.35, bargroupgap=0.1)
+    fig.update_yaxes(range=[0, max(0.7, float(piv.max().max()) + 0.05)], title="Gini")
+    return fig
+
+
+def calibration_drift_title(mon: pd.DataFrame, test=(202001, 202003), monitor_from: int = 202004) -> str:
+    """Takeaway for the monthly calibration-ratio chart: how far predicted PDs were from actual in the test months and after."""
+    t = mon[(mon.decision_month >= test[0]) & (mon.decision_month <= test[1])].calibration_ratio
+    a = mon[mon.decision_month >= monitor_from].calibration_ratio
+    if t.empty or a.empty:
+        return "Mean predicted PD ÷ observed bad rate by month"
+    return (f"Predicted PDs ran {1 - t.max():.0%} to {1 - t.min():.0%} below actual in Jan to Mar 2020 "
+            f"and {a.min() - 1:.0%} to {a.max() - 1:.0%} above it from April 2020")
 
 
 def setup_notebook_renderer() -> str:

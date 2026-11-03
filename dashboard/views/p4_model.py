@@ -1,11 +1,8 @@
-import json
-
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
-from common import CACHE, how_to_read, kpi_row, load, metrics, page_header, styled
+from common import CACHE, HEADERS, how_to_read, kpi_row, load, metrics, page_header, styled
 from src import charts
 from src.explain import fmt_value
 from src.features import LABELS
@@ -73,46 +70,24 @@ with tab2:
     st.dataframe(styled(show, {"approval_rate": "{:.1%}", "bad_rate_approved": "{:.2%}", "capture_rate": "{:.1%}", "false_positive_rate": "{:.1%}",
                                "credit_loss": "{:,.0f}", "forgone_margin": "{:,.0f}", "net_profit": "{:,.0f}"}), hide_index=True, use_container_width=True)
     c1, c2 = st.columns(2)
-    cal = load("calibration_test")
-    fig = go.Figure()
-    lim = float(max(cal.mean_pd.max(), cal.bad_rate.max())) * 1.08
-    fig.add_trace(go.Scatter(x=[0, lim], y=[0, lim], mode="lines", line=dict(color=charts.AXIS, width=1), name="Perfect calibration", hoverinfo="skip"))
-    for name in [CP, CH]:
-        c = cal[cal.model == name]
-        fig.add_trace(go.Scatter(x=c.mean_pd, y=c.bad_rate, mode="lines+markers", name=name, line=dict(color=charts.MODEL_COLORS[name], width=2),
-                                 marker=dict(size=8, line=dict(color=charts.SURFACE, width=2)), hovertemplate="predicted %{x:.2%}<br>observed %{y:.2%}<extra>" + name + "</extra>"))
-    charts.base_layout(fig, "Both models rank well; both under-predict the test quarter", "Observed bad rate vs mean predicted PD, by PD decile (Jan to Mar 2020)", height=430)
-    fig.update_xaxes(title="Mean predicted PD", tickformat=".0%", range=[0, lim])
-    fig.update_yaxes(title="Observed bad rate", tickformat=".0%", range=[0, lim])
-    c1.plotly_chart(fig, use_container_width=True)
-    piv = met.pivot_table(index="window", columns="model", values="gini").reindex(["train", "valid", "test", "monitor"])
-    fig2 = go.Figure()
-    for name in [CP, CH]:
-        fig2.add_trace(go.Bar(x=piv.index, y=piv[name], name=name, marker_color=charts.MODEL_COLORS[name], hovertemplate="%{x}: Gini %{y:.3f}<extra>" + name + "</extra>"))
-    charts.base_layout(fig2, "The challenger ranks better in every window", "Gini by time window (rank-ordering; secondary to the money view)", height=430)
-    fig2.update_layout(barmode="group", bargap=0.35, bargroupgap=0.1)
-    fig2.update_yaxes(range=[0, max(0.7, float(piv.max().max()) + 0.05)])
-    c2.plotly_chart(fig2, use_container_width=True)
+    c1.plotly_chart(charts.calibration_deciles(load("calibration_test")), use_container_width=True)
+    c2.plotly_chart(charts.gini_by_window(met), use_container_width=True)
+    st.markdown("**Is the champion handicapped?** The gap between the models, split into algorithm and information (out-of-time test)")
+    st.dataframe(styled(load("champion_checks"), {"valid_gini": "{:.3f}", "test_gini": "{:.3f}"}), hide_index=True, use_container_width=True)
     st.markdown("**By segment** (new-to-lender clients have no internal history, so both models rank them less well)")
     seg = load("segment_metrics")
-    st.dataframe(seg.pivot_table(index="segment", columns="model", values=["gini", "calibration_ratio", "bad_rate"]).round(3), use_container_width=True)
+    seg_view = seg.pivot_table(index="segment", columns="model", values=["gini", "calibration_ratio", "bad_rate"]).round(3)
+    seg_view.columns = [f"{HEADERS.get(a, a)}, {b.split(' (')[0].lower()}" for a, b in seg_view.columns]
+    st.dataframe(seg_view.rename_axis("Segment"), use_container_width=True)
 
 with tab3:
     imp = load("shap_global")
-    top = imp.head(15).iloc[::-1]
-    fig = go.Figure(go.Bar(x=top.mean_abs_shap, y=top.label, orientation="h", marker_color=charts.BLUE, width=0.6, customdata=top.group,
-                           hovertemplate="%{y}<br>%{customdata}<br>mean |SHAP| %{x:.3f}<extra></extra>"))
-    grp_share = imp.groupby("group").share.sum()
-    track = grp_share.get("Repayment history", 0) + grp_share.get("Previous applications", 0)
-    charts.base_layout(fig, f"The client's track record carries {track:.0%} of the challenger's impact; no single input dominates",
-                       "Average absolute impact on the log-odds of default (mean |SHAP|), top 15 inputs", height=520, legend=False)
-    fig.update_layout(margin=dict(l=310))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(charts.shap_importance(imp), use_container_width=True)
     grp = imp.groupby("group").share.sum().sort_values(ascending=False)
     st.caption("Share of total impact by input group: " + " · ".join(f"{k} {v:.0%}" for k, v in grp.items()))
     coefs = load("scorecard_coefficients").sort_values("iv", ascending=False)
     st.markdown("**Champion scorecard variables** (information value on the training window; all coefficients have the expected sign)")
-    st.dataframe(coefs[["label", "feature", "iv", "coefficient"]].round(3), hide_index=True, use_container_width=True)
+    st.dataframe(styled(coefs[["label", "feature", "iv", "coefficient"]], {"iv": "{:.3f}", "coefficient": "{:.3f}"}), hide_index=True, use_container_width=True)
     with st.expander("Scorecard points table (bins and points per variable)"):
         pts = load("scorecard_points")
         cols = ["Variable", "Bin", "Count", "Event rate", "WoE"] + (["WoE used in score"] if "WoE used in score" in pts else []) + ["Points"]

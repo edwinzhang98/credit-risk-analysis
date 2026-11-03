@@ -2,7 +2,9 @@
 -- 04_int_person_applicant.sql · The applicant's own person record: model inputs + fairness-test attributes
 -- Inputs : table stg_base (sql/01_stg_base.sql); train_person_1.parquet (raw; num_group1 = 0 is the applicant)
 -- Output : table int_person_applicant, 1 row per case_id
---            model inputs : employment_years, employment_length_band, employment_industry, income_main
+--            model inputs : employment_years, income_main
+--            kept for audit only (not model inputs): employment_length_band, employment_industry (collection stopped in mid-2020;
+--                           see docs/feature_inclusion_log.csv)
 --            fairness only: fair_sex, fair_age_years, fair_income_type  (prefix fair_ = NEVER a model input;
 --                           used to test approval rates by group and for proxy checks)
 -- Point-in-time: employment start dates after the decision date (316 cases) are set to NULL.

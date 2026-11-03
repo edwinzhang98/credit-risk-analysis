@@ -5,7 +5,7 @@ PY := .venv/bin/python
 .PHONY: setup all sql notebooks export report app screenshots qa test sql-check clean
 
 setup:
-	uv venv --python 3.12 .venv
+	uv venv --python 3.12 --allow-existing .venv
 	uv pip install --python $(PY) -r requirements.txt
 
 all:            ## full pipeline: SQL features + data-quality checks -> notebooks -> HTML exports -> report

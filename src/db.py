@@ -63,4 +63,8 @@ if __name__ == "__main__":
     connection = connect()
     for file in sys.argv[1:]:
         run_sql_file(connection, file)
+        try:  # the file's last statement is usually its result (a check or a summary); show it without re-running anything
+            print(connection.df().to_string(index=False, max_rows=60))
+        except Exception:  # noqa: BLE001  (last statement returned no result set)
+            pass
     connection.close()

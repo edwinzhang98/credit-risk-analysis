@@ -69,7 +69,10 @@
     "gini_test_scorecard_empirical_missing": 0.4642558091780551,
     "gini_test_lgbm_on_scorecard_vars": 0.48918503908042066,
     "gap_from_algorithm": 0.026688093610251595,
-    "gap_from_more_inputs": 0.08903913757225745
+    "gap_from_more_inputs": 0.08903913757225745,
+    "gini_test_scorecard_more_vars": 0.4904457029478795,
+    "scorecard_more_vars_n": 23,
+    "gap_closed_by_bigger_scorecard": 0.24150545374781746
   },
   "economics": {
     "lgd": 0.75,
@@ -172,6 +175,11 @@
       "low": 0.06601440953591252,
       "high": 0.0857581004537878
     }
+  },
+  "room_by_month": {
+    "202001": 29447572.518635012,
+    "202002": 36997260.54269001,
+    "202003": 25841344.84644001
   },
   "test_pass": {
     "swap_in_bad_rate": 0.12456973869200562,
@@ -544,15 +552,17 @@
       {
         "test": "Champion / challenger",
         "question": "Is the challenger's approved-book bad rate lower (3.57% vs 3.17%)?",
-        "loans_needed": 32438,
-        "note": "approved loans per arm; with 20% of traffic on the challenger \u2248 2.4 months of applications, then the outcome window"
+        "loans_needed": 20544,
+        "note": "approved loans in the challenger arm and 82,176 in the champion arm (20% / 80% of traffic) \u2248 1.5 months of booked-loan volume, then the outcome window"
       }
     ],
     "below_cutoff_loans_needed": 589,
     "cost_per_tail_loan": 4474.047506072867,
     "price_of_information": 2635213.9810769185,
-    "champion_challenger_loans_per_arm": 32438,
-    "champion_challenger_months": 2.4081186217545802,
+    "champion_challenger_loans_challenger": 20544,
+    "champion_challenger_loans_champion": 82176,
+    "champion_challenger_months": 1.5251368446058973,
+    "champion_challenger_loans_per_arm_if_equal": 32438,
     "challenger_traffic_share": 0.2
   },
   "sensitivity": [

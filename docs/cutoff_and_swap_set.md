@@ -2,7 +2,7 @@
 
 **Owner:** Credit Risk Analyst · **For:** credit-policy committee (Head of Credit Policy; sign-off from Model Risk / Validation, Finance, Underwriting Operations and Compliance) · **Written:** 2026-11-03
 
-**Sources.** Every number comes from [notebook 04](../notebooks/04_threshold_and_strategy.ipynb), [reports/metrics.json](../reports/metrics.json) and the tables notebook 04 writes to `data/processed/dashboard/` (rebuilt by `make all`; the file behind each table is named in its title). Definitions: [metric definitions](02_metric_definitions.md). Assumptions and their ranges: [assumptions log](assumptions.md).
+**Sources.** Every number comes from [notebook 04](../notebooks/04_threshold_and_strategy.ipynb), [reports/metrics.json](../reports/metrics.json) and the tables notebooks 03 and 04 write to `data/processed/dashboard/` (rebuilt by `make all`; the file behind each table is named in its title). Definitions: [metric definitions](02_metric_definitions.md). Assumptions and their ranges: [assumptions log](assumptions.md). Bad rates carry 95% Wilson intervals; the headline changes in money and approval rate carry 95% bootstrap intervals (200 loan-level resamples of the test quarter, fixed seed; `bootstrap_intervals.parquet`).
 
 ## 1. Purpose and set-up
 
@@ -13,8 +13,8 @@ This is the cut-off table a credit-risk team brings to the policy committee, bui
 | Population | Out-of-time test (Jan to Mar 2020): decisions 2020-01-01 to 2020-03-31, **222,681 booked loans** (74,227 a month), bad rate **4.41%** |
 | Products | Cash loans 55,330 (bad rate 5.17%) · revolving (card) 32,656 (bad rate 3.58%) · point-of-sale loans 134,695 (bad rate 4.30%) |
 | Models | Champion: the 16-variable WOE logistic-regression scorecard (out-of-time Gini 0.462). Challenger: LightGBM on 90 point-in-time features (Gini 0.578). Both give a PD calibrated on the Nov-Dec 2019 validation window (Platt scaling). |
-| Question 1 status quo | The historical policy, which approved every loan in this data: 100% of booked loans approved, bad rate 4.41%, net profit 899.5M CU over the quarter |
-| Question 2 status quo | The champion scorecard applying the cost-based rule: approval rate 92.5%, bad rate of approved 3.57%, net profit 945.5M CU |
+| Question 1 status quo | Today's policy, which approved every loan in this data: 100% of booked loans approved, bad rate 4.41%, net profit 899.5M CU over the quarter (a 0.5 PD cut-off lands in the same place: it declines 3 loans with the champion and 55 with the challenger) |
+| Question 2 status quo | The champion scorecard applying the cost-based rule (a rebuilt scorecard, not the lender's own incumbent): approval rate 92.5%, bad rate of approved 3.57%, net profit 945.5M CU |
 | Proposed policy | The challenger applying the cost-based rule (90.7% approved, bad rate 3.17%, net profit 991.8M CU), plus a manual-review tier inside capacity (expected 90.9% approved, bad rate 3.04%, net profit 1,003.6M CU) |
 | Units | Money in the dataset's undisclosed currency units (CU), summed over the test quarter unless marked "a month". "A month" is the quarter divided by three, in booked loans. Margins, LGD, EAD and review effectiveness are assumptions. |
 
@@ -86,7 +86,7 @@ A single PD cut-off applies one cut-off to every product: approve when the calib
 | 30.0% | 99.4% | 221,400 | 4.22% (4.14–4.30%) | 5.0% | 0.4% | 365.7M | 4.5M | 370.2M | 922.6M |
 | 50.0% | >99.9% | 222,626 | 4.41% (4.32–4.49%) | 0.2% | <0.1% | 391.4M | 0.2M | 391.7M | 901.1M |
 
-Total cost falls as the cut-off moves down from 0.5 until about 12.5% to 15.0%, then rises again as the margin lost on declined good customers outgrows the losses avoided. The textbook 0.5 cut-off declines only 55 loans and leaves the bad rate at 4.41%.
+The last row is today's policy in practice: today's policy approved every loan in this book, and a 0.5 cut-off lands in the same place (it declines 55 loans, approves 99.98% and leaves the bad rate at 4.41%). Total cost falls as the cut-off moves down until about 12.5% to 15.0%, then rises again as the margin lost on declined good customers outgrows the losses avoided.
 
 **Table 3.2 · Champion (scorecard), single PD cut-offs, money in CU over the quarter** (`cutoff_table.parquet`)
 
@@ -108,18 +108,17 @@ Total cost falls as the cut-off moves down from 0.5 until about 12.5% to 15.0%, 
 
 The champion's lowest-cost grid point sits lower (10.0%) and costs more (376.6M CU against 326.4M CU for the challenger); at 0.5 it declines 3 loans. Because the two models put different shares of loans below the same PD, compare them at an equal approval rate or an equal bad rate (Section 6), not at an equal PD.
 
-**Table 3.3 · Default 0.5 vs best single cut-off vs cost-based rule** (`loss_view.parquet`, money in CU over the quarter; best single cut-offs searched on a 0.25-point grid: 10.75% champion, 14.75% challenger)
+**Table 3.3 · Today's policy vs best single cut-off vs cost-based rule** (`loss_view.parquet`; today's policy from `reports/metrics.json` `approve_all`, and the change in total cost against it from `vs_today` for the cost-based rule; money in CU over the quarter; best single cut-offs searched on a 0.25-point grid: 10.75% champion, 14.75% challenger)
 
-| Model | Policy | Approval rate | Bad rate of approved | Credit loss | Forgone margin | Total cost | Total cost vs 0.5 | Net profit |
+| Model | Policy | Approval rate | Bad rate of approved | Credit loss | Forgone margin | Total cost | Total cost vs today's policy | Net profit |
 |---|---|---|---|---|---|---|---|---|
-| Champion | Default 0.5 cut-off | >99.9% | 4.41% | 393.3M | 0.03M | 393.3M | reference | 899.5M |
-| Challenger | Default 0.5 cut-off | >99.9% | 4.41% | 391.4M | 0.2M | 391.7M | reference | 901.1M |
+| Either | Today's policy (approve every booked loan) | 100% | 4.41% | 393.3M | 0 | 393.3M | reference | 899.5M |
 | Champion | Best single cut-off (PD 10.8%) | 94.3% | 3.70% | 325.3M | 50.3M | 375.6M | −4.5% | 917.2M |
-| Challenger | Best single cut-off (PD 14.8%) | 95.7% | 3.55% | 287.0M | 39.3M | 326.3M | −16.7% | 966.5M |
+| Challenger | Best single cut-off (PD 14.8%) | 95.7% | 3.55% | 287.0M | 39.3M | 326.3M | −17.0% | 966.5M |
 | Champion | Cost-based rule (product break-evens) | 92.5% | 3.57% | 318.7M | 28.6M | 347.4M | −11.7% | 945.5M |
-| Challenger | Cost-based rule (product break-evens) | 90.7% | 3.17% | 254.1M | 46.9M | 301.0M | −23.2% | 991.8M |
+| Challenger | Cost-based rule (product break-evens) | 90.7% | 3.17% | 254.1M | 46.9M | 301.0M | −23.5% | 991.8M |
 
-The cost-based rule beats the best single cut-off for both models (challenger: 301.0M vs 326.3M CU total cost) because each product gets its own break-even. Against the 0.5 cut-off, the challenger's rule cuts the total cost of wrong decisions by 23% and credit losses by 35%.
+The cost-based rule beats the best single cut-off for both models (challenger: 301.0M vs 326.3M CU total cost) because each product gets its own break-even. Against today's policy, the challenger's rule cuts the total cost of wrong decisions by 23% and credit losses by 35% (the champion's rule: 12% and 19%). A 0.5 cut-off is the same comparator in practice: it declines 3 loans with the champion and 55 with the challenger (last row of Tables 3.1 and 3.2), within 1.6M CU of today's total cost.
 
 **Table 3.4 · The cost-based rule by product** (`rule_by_product.parquet`, money in CU over the quarter)
 
@@ -132,7 +131,7 @@ The cost-based rule beats the best single cut-off for both models (challenger: 3
 | Point-of-sale loan · 7.7% | Champion | 88.2% | 2.93% | 4.29% | 40.0% | 10.5% | 121.0M | 23.8M | 103.9M |
 | Point-of-sale loan · 7.7% | Challenger | 85.6% | 2.31% | 2.62% | 54.0% | 12.6% | 68.2M | 37.5M | 143.0M |
 
-Most of the tightening, and most of the challenger's gain, is in point-of-sale loans: the challenger declines 14.4% of them (champion 11.8%) and keeps 54.0% of point-of-sale bads off the book (champion 40.0%), cutting point-of-sale credit losses from 121.0M to 68.2M CU (by amount, the bad rate of approved point-of-sale loans falls from 4.29% to 2.62%). On cash loans the two models are almost identical (under 0.5% declined), and approved cash loans default more often by amount than by count (5.53% vs 5.09%): larger cash loans carry more of the loss.
+Most of the tightening, and most of the challenger's gain, is in point-of-sale loans: the challenger declines 14.4% of them (champion 11.8%) and keeps 54.0% of point-of-sale bads off the book (champion 40.0%), cutting point-of-sale credit losses from 121.0M to 68.2M CU (by amount, the bad rate of approved point-of-sale loans falls from 4.29% to 2.62%). On cash loans the two models are almost identical (under 0.5% declined). The amount-based bad rate of approved cash loans is higher than the count-based one (5.53% vs 5.09%) because the cash loans that default are larger than those that repay, and cash loans are the largest loans in the book (median 60,000 CU), so they carry more of the loss than their count suggests.
 
 ## 4. Scorecard points view
 
@@ -146,7 +145,7 @@ Policy committees usually sign the scorecard cut-off in points. Points = 600 + 2
 | Revolving (card) | 14.3% | 6:1 | **544 points** (543.9) | 98.2% | 3.29% | 602 | 18.77% (15.85–22.08%) |
 | Point-of-sale loan | 7.7% | 12:1 | **564 points** (564.2) | 88.2% | 2.93% | 15,845 | 14.64% (14.09–15.19%) |
 
-Applied in points, the rule reproduces the champion's cost-based decisions exactly (checked loan by loan on the test quarter); the point-of-sale line sits about 41 points above the cash line, so the same score can be approved for a cash loan and declined for a point-of-sale loan. Only 248 cash loans score below their line, so read their bad rate with the interval.
+Applied in points at the unrounded cut-offs (523.6, 543.9, 564.2), the rule reproduces the champion's cost-based decisions exactly (checked loan by loan on the test quarter); the point-of-sale line sits about 41 points above the cash line, so the same score can be approved for a cash loan and declined for a point-of-sale loan. Only 248 cash loans score below their line, so read their bad rate with the interval.
 
 **Table 4.2 · Score / odds table, champion scorecard, all products** (`odds_table.parquet`; 20-point bands; the last three columns describe setting the cut-off at the top of the band, i.e. declining that band and everything below it)
 
@@ -167,7 +166,7 @@ Good:bad odds roughly double every 20 points from 540 to 640 (6.5:1 to 97.5:1), 
 
 ## 5. Question 1: is there room on the current cut-off?
 
-Status quo: the historical policy, which approved every booked loan (bad rate 4.41%). Tightening means declining part of today's book; loosening means approving applicants the historical policy rejected.
+Status quo: today's policy, which approved every booked loan (bad rate 4.41%; a 0.5 PD cut-off lands in the same place). Tightening means declining part of today's book; loosening means approving applicants today's policy rejects.
 
 ### 5.1 Tightening today's book
 
@@ -182,11 +181,11 @@ Status quo: the historical policy, which approved every booked loan (bad rate 4.
 | Loan amount declined | 1,062.4M CU | 636.9M CU |
 | Credit loss avoided | 139.2M CU | 74.6M CU |
 | Margin forgone on declined good loans | 46.9M CU | 28.6M CU |
-| **Net gain over the quarter** | **+92.3M CU** | **+45.9M CU** |
+| **Net gain over the quarter** (95% bootstrap interval) | **+92.3M CU** (86.0M to 98.7M) | **+45.9M CU** |
 | Approval rate (share of booked loans) | 100% → 90.7% | 100% → 92.5% |
 | Book bad rate | 4.41% → **3.17%** | 4.41% → **3.57%** |
 
-There is room to tighten, and it is fully observable because these loans were booked: the challenger's tail defaults at 16.61%, 3.8 times the book, and declining it is worth 92.3M CU a quarter, about twice the champion's 45.9M CU. The price is 9.3 pp of approval rate, the opposite of what the business asked for; Sections 5.2 and 6 show how that room can be spent.
+There is room to tighten, and it is fully observable because these loans were booked: the challenger's tail defaults at 16.61%, 3.8 times the book, and declining it is worth 92.3M CU a quarter (95% bootstrap interval 86.0M to 98.7M CU), about twice the champion's 45.9M CU; against today's policy that is 23% less total cost of wrong decisions and 35% less credit loss (Table 3.3). The price is 9.3 pp of approval rate, the opposite of what the business asked for; Sections 5.2 and 6 show how that room can be spent.
 
 ### 5.2 Loosening: how far the room stretches (headroom)
 
@@ -199,23 +198,24 @@ net change in approvals                s − d = d × (t − r) ÷ (r − B)
 
 With the challenger's rule: B = 4.41% (today's book), t = 16.61% (the 20,627 loans the rule declines), d = 20,627. r, the bad rate of the newly approved applicants, is not in the data.
 
-**Table 5.2 · Exchange rate at an unchanged book bad rate, for a range of r** (`headroom_points.parquet`)
+**Table 5.2 · Exchange rate at an unchanged book bad rate, for a range of r** (`headroom_points.parquet`; volumes are booked-loan volumes)
 
 | Bad rate of the new approvals (r) | r ÷ today's book bad rate | New approvals per declined tail loan | New approvals the room pays for (quarter) | Net change in approvals (quarter) | Net change a month |
 |---|---|---|---|---|---|
-| 5.52% | 1.25× | 11.1 | 227,963 | +207,336 | +69,112 |
-| 6.62% | 1.50× | 5.5 | 113,982 | +93,355 | +31,118 |
 | 8.83% | 2.00× | 2.8 | 56,991 | +36,364 | +12,121 |
+| 12.46% | 2.82× (= 0.75 × the tail: the below-cut-off test's pass threshold) | 1.5 | 31,276 | +10,649 | +3,550 |
 | 13.24% | 3.00× | 1.4 | 28,495 | +7,868 | +2,623 |
 | 16.61% | 3.76× (= the tail) | 1.0 | 20,627 | 0 | 0 |
 
-**In plain English.** Read each row as: if the applicants we start approving default at r, every risky loan we stop approving makes room for this many of them while the book's bad rate stays at today's 4.41%. If they default at 6.62% (one and a half times the book), each declined tail loan pays for 5.5 new approvals; if they default like the tail (16.61%), it is one for one and approvals cannot rise, and above that loosening pushes the bad rate up. Three limits: the table holds the bad rate constant, not profit; the top rows are upper bounds, because the volume is capped by how many applicants the lender rejects today, which this data does not show; and r is unknown, because the applicants the lender rejected were never booked. Section 9 sizes the test that measures it.
+**In plain English.** Read each row as: if the applicants we start approving default at r, every risky loan we stop approving makes room for this many of them while the book's bad rate stays at today's 4.41%. If they default at 8.83% (twice the book), each declined tail loan pays for 2.8 new approvals; at 12.46%, the bad rate the below-cut-off test in Section 9 is sized to detect, 1.5, about 10,600 more approvals a quarter; if they default like the tail (16.61%), it is one for one and approvals cannot rise, and above that loosening pushes the bad rate up. Three limits: the table holds the bad rate constant, not profit; the top rows are upper bounds, because the volume is capped by how many applicants the lender rejects today (through-the-door volume), which this data does not show; and r is unknown, because the applicants the lender rejected were never booked. Section 9 sizes the test that measures it.
 
 ## 6. Question 2: champion vs challenger
 
-Status quo: the champion applying the cost-based rule (205,986 loans approved, 92.5%; bad rate 3.57%; credit loss 318.7M CU; net profit 945.5M CU). Both swap groups were booked by the historical policy, so the bad rates of swap-ins and swap-outs below are observed, unlike the loosening case in 5.2.
+Status quo: the champion applying the cost-based rule (205,986 loans approved, 92.5%; bad rate 3.57%; credit loss 318.7M CU; net profit 945.5M CU). The champion is a rebuilt scorecard, so every uplift in this section is against a rebuilt scorecard applying the same cost-based rule, not against today's book (Section 5) and not against the lender's own incumbent. Both swap groups were booked by the historical policy, so the bad rates of swap-ins and swap-outs below are observed, unlike the loosening case in 5.2.
 
-**Headline (out-of-time test, Jan to Mar 2020).** At the champion's bad rate (3.57%), the challenger approves 95.8% instead of 92.5%: **+3.3 pp, about 2,458 more loans a month**. At the champion's approval rate (92.5%), its credit losses are **22% lower** (−68.9M CU a quarter). Under the recommended policy (each model on its own cost-based rule), swap-outs default at 14.70% and swap-ins at 7.08%.
+**Headline (out-of-time test, Jan to Mar 2020).** At the champion's bad rate (3.57%), the challenger approves 95.8% instead of 92.5%: **+3.3 pp (95% bootstrap interval 2.9 to 3.6 pp), about 2,458 more booked loans a month**. At the champion's approval rate (92.5%), its credit losses are **22% lower (20% to 23% lower)**, −68.9M CU a quarter. Under the recommended policy (each model on its own cost-based rule), swap-outs default at 14.70% and swap-ins at 7.08%, a gap of 7.6 pp (6.6 to 8.6 pp).
+
+**Where the gap between the models comes from** (`champion_checks.parquet`). On the test quarter the champion scores Gini 0.462, LightGBM on the scorecard's own 16 inputs 0.489 and the challenger on all 90 inputs 0.578: of the 11.6-point gap, 2.7 points come from the algorithm and 8.9 from more inputs. The scorecard refitted with empirical WOE for missing values scores 0.464 (+0.2 points), so the neutral treatment of missing values does not handicap it.
 
 **Table 6.1 · Three ways to use the challenger, against the champion's cost-based rule** (from the three swap tables below; ties out to `reports/metrics.json` `model_value`)
 
@@ -255,7 +255,7 @@ Net effect: approvals +7,374 (+3.3 pp, 2,458 a month); bad rate of approved unch
 | **Champion approves** | **Approved by both**<br>197,278 loans (88.6%)<br>bad rate 3.07% (3.00–3.15%)<br>loan amount 10,656.6M CU<br>credit loss if approved 247.2M CU<br>net value if approved +989.9M CU | **Swap-out (approved → declined)**<br>8,708 loans (3.9%)<br>bad rate 14.70% (13.97–15.46%)<br>loan amount 576.0M CU<br>credit loss if approved 71.5M CU<br>net value if approved −44.4M CU |
 | **Champion declines** | **Swap-in (declined → approved)**<br>4,776 loans (2.1%)<br>bad rate 7.08% (6.38–7.84%)<br>loan amount 150.4M CU<br>credit loss if approved 6.9M CU<br>net value if approved +1.9M CU | **Declined by both**<br>11,919 loans (5.4%)<br>bad rate 18.00% (17.33–18.70%)<br>loan amount 486.5M CU<br>credit loss if approved 67.6M CU<br>net value if approved −47.9M CU |
 
-Net effect: approvals −3,932 (−1.8 pp); bad rate of approved 3.57% → 3.17%; credit loss −64.6M CU (−20.3%); net profit +46.3M CU. Swap-outs default about twice as often as swap-ins (14.70% vs 7.08%) and are larger loans: declining them is worth 44.4M CU, and approving the swap-ins adds 1.9M CU.
+Net effect: approvals −3,932 (−1.8 pp); bad rate of approved 3.57% → 3.17%; credit loss −64.6M CU (−20.3%); net profit +46.3M CU. Swap-outs default about twice as often as swap-ins (14.70% vs 7.08%; a gap of 7.6 pp, 95% bootstrap interval 6.6 to 8.6 pp) and are larger loans: declining them is worth 44.4M CU, and approving the swap-ins adds 1.9M CU.
 
 ### 6.5 Who swaps in and who swaps out (recommended policy)
 
@@ -278,7 +278,7 @@ Both swap groups are about 90% point-of-sale, and swap-ins are smaller loans tha
 
 ## 7. Three tiers: volumes, costs and capacity
 
-Each application goes to the action with the highest expected value: auto-approve, decline, or manual review. A review costs 300 CU, and a reviewer is assumed to decline 40% of the bad applicants and 10% of the good ones ([assumptions log](assumptions.md), R1 to R4). Reviews are capped at 5% of applications (3,711 a month), keeping the most valuable first. Review outcomes are expected values, not observed decisions.
+Each application goes to the action with the highest expected value: auto-approve, decline, or manual review. A review costs 300 CU, and a reviewer is assumed to decline 40% of the bad applicants (the reviewer catch rate) and 10% of the good ones ([assumptions log](assumptions.md), R1 to R4). Reviews are capped at 5% of applications (3,711 a month on booked-loan volume; the queue itself is set on through-the-door volume, larger by the share the lender rejects today), keeping the most valuable first. Review outcomes are expected values, not observed decisions.
 
 **Table 7.1 · Volumes by tier, challenger** (`tiers.parquet`)
 
@@ -299,7 +299,7 @@ Each application goes to the action with the highest expected value: auto-approv
 | **Three-tier total** | 202,430 (90.9%) | 6,160 (3.04%) | 1,245.5M | 238.6M | 47.3M | 3.3M | **1,003.6M** |
 | Two-tier (challenger, cost-based rule) | 202,054 (90.7%) | 6,403 (3.17%) | 1,245.9M | 254.1M | 46.9M | 0 | 991.8M |
 
-The review tier takes 5.0% of applications (3,711 a month, all of the assumed capacity) and adds 11.8M CU a quarter over the two-tier rule, if reviewers decline 40% of the bad applicants they see. Reviewed applications are large (median 96,955 CU) and default at 12.21%, between the auto-approve and decline tiers.
+The review tier takes 5.0% of applications (3,711 a month, all of the assumed capacity) and adds 11.8M CU a quarter over the two-tier rule, if reviewers decline 40% of the bad applicants they see. Reviewed applications are large (median 96,955 CU) and default at 12.21% (the review hit rate), between the auto-approve and decline tiers; with the 40% catch rate that is 4.9% bads stopped per review (544 of 11,134).
 
 **Table 7.3 · Tiers by product** (`tier_by_product.parquet`; PD = challenger calibrated PD)
 
@@ -319,7 +319,7 @@ Review is amount-aware: a 300 CU review can pay for itself only on loans of at l
 
 **Table 7.4 · Value of the review tier vs the two-tier rule, by reviewer effectiveness** (`review_grid.parquet`; extra net profit in CU over the quarter, with the share of applications sent to review in brackets)
 
-| Share of bad applicants the reviewer declines | Reviewer declines 5% of goods | Reviewer declines 10% of goods | Reviewer declines 15% of goods | Reviewer declines 20% of goods |
+| Reviewer catch rate (share of bad applicants the reviewer declines) | Reviewer declines 5% of goods | Reviewer declines 10% of goods | Reviewer declines 15% of goods | Reviewer declines 20% of goods |
 |---|---|---|---|---|
 | 20% | +4.2M (3.6%) | +1.8M (1.0%) | +0.04M (0.1%) | no reviews |
 | 30% | +12.6M (5.0%) | +4.2M (3.9%) | +2.4M (1.7%) | +1.1M (0.6%) |
@@ -327,7 +327,7 @@ Review is amount-aware: a 300 CU review can pay for itself only on loans of at l
 | 50% | +31.7M (5.0%) | +22.0M (5.0%) | +12.9M (5.0%) | +7.4M (5.0%) |
 | 60% | +42.4M (5.0%) | +31.7M (5.0%) | +22.4M (5.0%) | +14.8M (5.0%) |
 
-At the assumed 40% / 10% (bold) the tier adds 11.8M CU a quarter. With the same 10% of goods declined, a reviewer who catches only 20% of bads leaves few applications worth reviewing (1.0%) and adds 1.8M CU, while one who catches 60% adds 31.7M CU. The hit rate is not in the data, so review outcomes must be logged before the tier is scaled.
+At the assumed 40% / 10% (bold) the tier adds 11.8M CU a quarter. With the same 10% of goods declined, a reviewer who catches only 20% of bads leaves few applications worth reviewing (1.0%) and adds 1.8M CU, while one who catches 60% adds 31.7M CU. The catch rate is not in the data, so review outcomes must be logged before the tier is scaled.
 
 **Table 7.5 · Capacity** (`reports/metrics.json` `three_tier`)
 
@@ -350,6 +350,8 @@ Capacity binds: 5,988 applications a month would be worth reviewing against a ca
 3. Otherwise **decline**, with the model's main decline reasons recorded.
 
 If Model Risk has not yet approved the challenger, run the same rule on the champion in points (Table 4.1): approve cash loans above 524, revolving above 544 and point-of-sale above 564 points. On its own that is worth 45.9M CU a quarter against today's book (Table 5.1). The challenger itself goes live through the champion/challenger test in Section 9.
+
+**Where the cut-off sits in the decision flow.** The rule applies after the lender's policy (knock-out) rules: an application that fails a policy rule is declined before it is scored, so in production the rule's approval rate is a share of applicants that reach the score (in this pack, of previously approved applicants). Overrides of the rule are allowed only with a logged reason and a named owner, capped (for example at 5% of decisions) and monitored: the override rate, and the bad rate of overridden approvals against model-approved loans (Table 8.3).
 
 **Table 8.1 · The rule by product, as expected on the test quarter** (`tier_by_product.parquet`, `rule_by_product.parquet`)
 
@@ -379,15 +381,15 @@ The test quarter defaulted more than the calibration window, so PDs ran about 10
 | Approval rate under the rule | 90.7% of previously approved applicants (test months 90.2% to 91.0%); re-set the plan on through-the-door applications in the first month | weekly | ± 3 pp vs plan | ± 5 pp | Credit policy |
 | Calibration ratio, mature vintages | 0.90 on the test quarter | monthly | outside 0.8 to 1.25 | two months in a row | Model validation |
 | Early delinquency (30+ days past due at month 3) vs the level expected from the PDs | not in this dataset; set at go-live | monthly | +20% | +40% | Risk analytics |
-| Score PSI vs the development sample | at most 0.008 in the test quarter | monthly | ≥ 0.10 | ≥ 0.25 | Risk analytics |
-| Feature CSI, top 12 inputs | below 0.10 in the test quarter except loan term in 2020-01 (0.12) | monthly | ≥ 0.10 | ≥ 0.25 | Risk analytics |
+| Score PSI vs the development sample | at most 0.008 in the test quarter (challenger); 0.08 at its back-test peak, while the scorecard's reached 0.15 | monthly | ≥ 0.10 | ≥ 0.25 | Risk analytics |
+| Feature CSI: the 12 most influential inputs, every categorical input and every input that already shifted between training and test (22 inputs) | in the test quarter, above 0.10 for loan term in 2020-01 (0.12), the five credit-bureau enquiry inputs (0.14 to 0.18 in 2020-02 and 2020-03) and the reason for the last rejection (0.18 and 0.20); the other inputs below 0.10 | monthly | ≥ 0.10 | ≥ 0.25 | Risk analytics |
 | Gini, mature vintages | 0.578 on the test quarter (validation 0.582) | quarterly | 5 points below validation | 10 points below | Model validation |
-| Review hit rate (bads found ÷ reviewed) | 4.89%: 544 bads declined in 11,134 reviews a quarter, from the 40% assumption | monthly | 25% below the assumption | no separate act level | Underwriting operations |
+| Reviewer catch rate (1 − bads among review approvals ÷ bads expected in the reviewed pool) | 40% assumed; with a review hit rate of 12.2% that stops 4.9% bads per review (544 of 11,134 reviews a quarter) | monthly, as outcomes mature | below 30% (25% under the assumption) | no separate act level | Underwriting operations |
 | Override rate and override bad rate | not modelled in this pack | monthly | > 5% of decisions | override bad rate above model-approved | Credit policy |
 
-The April to October 2020 back-test is the reason for the outcome rows: the challenger's score PSI stayed below 0.10 (peak 0.08) and the approval rate under the rule stayed between 91.3% and 92.7%, while the monthly bad rate fell to 1.96% to 2.45% and predicted PDs ran up to 66% above actual. A stable score distribution and a stable approval rate do not mean stable risk; calibration and early delinquency do the catching.
+The April to October 2020 back-test is the reason for the outcome rows: the challenger's score PSI stayed below 0.10 (peak 0.08) and the approval rate under the rule stayed between 91.3% and 92.7%, while the bad rate dropped in one step in April 2020 (to 1.96% to 2.45% a month) and then stayed flat, and predicted PDs ran up to 66% above actual. The scorecard's PSI did move, to 0.108 to 0.146 from May 2020 (about 0.15), in step with the employment field's fill-rate collapse (employment-years CSI 0.86). A stable score distribution and a stable approval rate do not mean stable risk; calibration and early delinquency do the catching. The cause of the drop is not known (Section 10), so the back-test is illustrative.
 
-On the inputs: loan term crossed the 0.10 CSI line in 9 of 22 months (peak 0.23 in 2019-11), and employment years was above 0.10 in every month from 2020-04 (peak 0.86 in 2020-05), a data-capture break that CSI caught at once.
+On the inputs, counting only the 12 months after the training window (`csi_flags.parquet`): 12 of the 22 monitored inputs crossed 0.10 at least once. Employment years was above 0.10 in every month from 2020-04 (peak 0.86 in 2020-05), a data-capture break that CSI caught at once; loan term crossed it in 7 months (peak 0.23 in 2019-11); the credit-bureau enquiry counts in 9 to 10 months from 2019-12 or 2020-02 (peak 0.37). The reason for the last rejection, a categorical input, was above 0.10 in all 9 months from 2020-02 (peak 0.24 in 2020-07): a second data-definition drift, as new reject codes (introduced from February 2019) replace old ones in the code mix.
 
 ## 9. Tests needed before scaling
 
@@ -395,16 +397,16 @@ On the inputs: loan term crossed the 0.10 CSI line in 9 of 22 months (peak 0.23 
 
 | Test | Question | Design | Size | Cost and time |
 |---|---|---|---|---|
-| Below-cut-off test | Do applicants just below today's line default at 25% less than the declined tail (16.61% vs 12.46%)? | Approve a random sample of applicants that today's policy would reject, just below the approval line, with capped amounts | **589 approved test loans** | Expected net loss about 4,474 CU a loan, so a price of information of about 2.6M CU. Duration depends on today's reject volume, which is not in this data. |
-| Champion / challenger | Is the challenger's approved-book bad rate lower (3.57% vs 3.17%)? | Random assignment at application, 20% of traffic on the challenger, stratified by product; the decision rule (bad rate, approval rate, profit) written down before the start | **32,438 approved loans per arm** | About 2.4 months of applications on the test quarter's volume, then the outcome window; 30+ days past due at month 3 gives an early read |
+| Below-cut-off test | Do applicants just below today's approval line (applicants the current policy rejects) default at 25% less than the declined tail (16.61% vs 12.46%)? | Approve a random sample of applicants that today's policy rejects, just below its approval line (not below the new line), with capped amounts | **589 approved test loans** | Expected net loss about 4,474 CU a loan, so a price of information of about 2.6M CU; both are floors (see below). Duration depends on today's through-the-door reject volume, which is not in this data. |
+| Champion / challenger | Is the challenger's approved-book bad rate lower (3.57% vs 3.17%)? | Random assignment at application, 20% of traffic on the challenger, stratified by product; the decision rule (bad rate, approval rate, profit) written down before the start | **32,438 approved loans per arm** | About 2.4 months of applications on the test quarter's booked-loan volume (re-set on through-the-door volume at the start), then the outcome window; 30+ days past due at month 3 gives an early read |
 
-The below-cut-off test is the only way to learn r in Table 5.2: the 25% reduction it is sized to detect would put r at 12.46%, worth about 1.5 new approvals per declined tail loan by the formula in 5.2. Its cost per loan, 4,474 CU, is the average net loss of the declined tail (92.3M CU ÷ 20,627 loans); if today's rejects are riskier than that tail, the test costs more.
+The below-cut-off test is the only way to learn r in Table 5.2. What a pass buys (`reports/metrics.json` `test_pass`): if the test loans default at 12.46% or less (25% below the tail's 16.61%), each declined tail loan funds about 1.5 new approvals, about 10,600 more loans a quarter at an unchanged book bad rate; a fail means the room in Section 5.1 is spent on a lower bad rate, not on volume. Its cost per loan, 4,474 CU, is the average net loss of the declined tail (92.3M CU ÷ 20,627 loans; net of the margin the test loans that repay will earn), so 2.6M CU is a floor: the sample is drawn from applicants today's policy rejects, who are probably riskier than the declined tail.
 
 **Table 9.2 · Other checks before scaling**
 
 | Check | Why | Owner |
 |---|---|---|
-| Log review outcomes (bads declined, goods declined, cost per case) for the first months | The review tier's value moves from +1.8M to +31.7M CU a quarter across the hit rates in Table 7.4 | Underwriting operations |
+| Log review outcomes (bads declined, goods declined, cost per case) for the first months | The review tier's value moves from +1.8M to +31.7M CU a quarter across the reviewer catch rates in Table 7.4 | Underwriting operations |
 | Sign off the margins, LGD and EAD | The break-evens and the share declined move most with the margins (Tables 2.2, 2.3) | Finance |
 | Recalibrate the challenger on the latest mature vintage | Test-quarter PDs ran about 10% low (Table 8.2) | Model validation |
 | Review the age and sex results and the decline-reason library | The model under-predicts risk for men (calibration ratio 0.73) and 18-24s (0.73); Section 10 | Compliance |
@@ -412,11 +414,11 @@ The below-cut-off test is the only way to learn r in Table 5.2: the 25% reductio
 ## 10. Caveats
 
 - **Selection bias.** Every loan in the data was approved by the historical policy. Approval rates are shares of previously approved applicants, and the bad rate of past rejects is unknown. Tightening results (Section 5.1) and swap sets (Section 6) are observed on booked loans; loosening (Section 5.2) is a formula until the below-cut-off test reports.
-- **Assumptions drive the money.** Margins, LGD, EAD, the review hit rates, the review cost and the review capacity are assumptions ([assumptions log](assumptions.md)). The cost-based rule beats approving every booked loan in all three margin scenarios (Table 2.3), but the CU amounts move with them. The champion is a rebuilt scorecard; if the lender's actual incumbent is stronger, the challenger's uplift is overstated.
+- **Assumptions drive the money.** Margins, LGD, EAD, the reviewer catch rate, the review cost and the review capacity are assumptions ([assumptions log](assumptions.md)). The cost-based rule beats today's policy in all three margin scenarios (Table 2.3), but the CU amounts move with them. The champion is a rebuilt scorecard: the +3.3 pp and the 22% lower credit losses are against that scorecard applying the same rule, and if the lender's own incumbent is stronger, the challenger's uplift is overstated.
 - **Calibration.** PDs were calibrated on a 3.51% window and tested on a 4.41% quarter; they ran about 10% low (Table 8.2).
-- **A pre-COVID quarter.** The cut-offs are set on January to March 2020. In April to October 2020 the monthly bad rate was 1.96% to 2.45%, probably a mix of COVID-era measures and the lender's own tightening (this data cannot separate them); a cut-off change should wait for mature vintages.
+- **A pre-COVID quarter.** The cut-offs are set on January to March 2020. From April 2020 monthly volume fell by about 86% (60,748 to 8,289 loans) and the bad rate dropped in one step, to 1.96% to 2.45% a month, then stayed flat. It may reflect COVID-era measures, the lender's own tightening or loans too recent to have defaulted (the outcome horizon is not disclosed); the data cannot separate these, so the Section 8 back-test is illustrative and a cut-off change should wait for mature vintages.
 - **Target and currency.** The default definition and horizon are Home Credit's and are not disclosed; vintages up to March 2020 are treated as mature. Amounts are in undisclosed currency units.
-- **Volumes.** "A month" figures are booked loans per month in the test quarter (74,227), not through-the-door applications. Review outcomes are expected values, not observed decisions.
+- **Volumes.** "A month" figures (3,711 reviews, about 2,458 extra approvals, the months the tests need) are booked loans per month in the test quarter (74,227), not through-the-door applications; the real review queue and test durations are set on through-the-door volume, larger by the share the lender rejects today. Review outcomes are expected values, not observed decisions.
 - **Fair lending.** Under the recommended policy approval rates are 90.8% for women and 90.6% for men; the lowest age-band ratio is 0.89 (18-24, who default at 7.57%), above the 0.80 screen. The model under-predicts the risk of men (calibration ratio 0.73) and of 18-24s (0.73). The screen is a trigger for review, not a legal conclusion.
 - **Small cells.** The two edge score bands (Table 4.2, 25 and 38 loans) and the declined cash loans (Table 4.1, 248 loans; Table 7.3, 74 loans) carry wide intervals.
 - **Associations, not causes.** Swap profiles and segment differences describe who moves and how risk is distributed in approved loans; they do not say why.

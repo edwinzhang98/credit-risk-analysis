@@ -19,10 +19,10 @@ st.markdown(
 )
 
 kpi_row([
-    ("Cost of wrong decisions vs today's policy", f"{m['vs_today'][CH]['total_cost_change']:.0%}", "Credit losses on approved bads + margin forgone on declined goods: cost-based rule vs approving every booked loan (a 0.5 cut-off does almost the same here)."),
-    ("Extra approvals at the same bad rate", f"{100 * mv['same_bad_rate']['extra_approvals_pp']:+.1f} pp", f"Challenger vs champion scorecard at the champion's bad rate: about {mv['same_bad_rate']['extra_approvals_per_month']:,.0f} more loans a month."),
+    ("Cost vs today's policy", f"{m['vs_today'][CH]['total_cost_change']:.0%}", "Total cost of wrong decisions (credit losses on approved bads + margin forgone on declined goods): cost-based rule vs approving every booked loan (a 0.5 cut-off does almost the same here)."),
+    ("Extra approvals at the same bad rate", f"{100 * mv['same_bad_rate']['extra_approvals_pp']:+.1f} pp", f"Challenger vs a rebuilt scorecard applying the same rule, at the scorecard's bad rate: about {mv['same_bad_rate']['extra_approvals_per_month']:,.0f} more booked loans a month."),
     ("Risky tail declined by the rule", f"{room['declined_share']:.1%}", f"These loans defaulted at {room['tail_bad_rate']:.1%} vs {m['data']['test_bad_rate']:.1%} for the whole book."),
-    ("Manual review queue", f"{tt['totals']['reviews_per_month']:,.0f} / month", f"Within a capacity of {tt['capacity_per_month']:,.0f} reviews a month (5% of applications)."),
+    ("Manual review queue", f"{tt['totals']['reviews_per_month']:,.0f} / month", f"The team's full capacity (5% of applications); {tt['uncapped_review_per_month']:,.0f} a month would be worth reviewing, so the most valuable are kept. Booked-loan volume."),
 ])
 
 curves = {CP: load("loss_curve_champion"), CH: load("loss_curve_challenger")}
@@ -38,7 +38,8 @@ st.markdown(f"""
    approves **{100 * mv['same_bad_rate']['extra_approvals_pp']:+.1f} pp** more applicants at the scorecard's bad rate. Approving applicants the
    lender rejected in the past cannot be evaluated from this data (their outcomes were never observed): a small below-cut-off test is the way to find out.
 3. **Route the grey zone to people, within capacity.** About **{tt['totals']['review_rate']:.1%}** of applications (larger loans near the break-even)
-   go to manual review; small point-of-sale loans never do, because a review costs more than it can save.
+   go to manual review, the team's full capacity: {tt['uncapped_review_per_month']:,.0f} a month would be worth reviewing, so the most valuable are kept.
+   Small point-of-sale loans never qualify, because a review costs more than it can save.
 """)
 
 st.subheader("How the app is organised")
@@ -64,7 +65,10 @@ and does slightly better than any single cut-off.
 margin on a good one, which is why the cut-off is derived from those costs (they are assumptions, adjustable on the Threshold Simulator page).
 
 **Champion vs challenger.** The champion is a logistic-regression scorecard, the kind of model most lenders run in production; the challenger is
-a gradient-boosted model (LightGBM). Both use the same 90 inputs, all checked to be available at the moment of the decision.
+a gradient-boosted model (LightGBM). The challenger uses all {m['leakage']['n_features']} inputs; the scorecard uses {m['models']['scorecard_variables']} of them, chosen by
+information value with a correlation filter. Every input was checked to be available at the moment of the decision. Most of the challenger's edge
+comes from using more of that information: LightGBM on the scorecard's {m['models']['scorecard_variables']} inputs reaches a Gini of
+{m['models']['gini_test_lgbm_on_scorecard_vars']:.3f}, against {m['models']['gini_test_champion']:.3f} for the scorecard and {m['models']['gini_test_challenger']:.3f} for the challenger.
 
 **One caveat to say out loud.** Every loan in this data was approved by the lender's past policy, so "approval rate" here means the share of
 *previously approved* applicants a policy would approve. People the lender rejected in the past are not in the data.

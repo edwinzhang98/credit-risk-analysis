@@ -95,7 +95,9 @@ def apply_css() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
 
 
-HEADERS = {
+from src.labels import COLUMN_LABELS  # noqa: E402
+
+HEADERS = {**COLUMN_LABELS,
     "cell": "Cell", "applications": "Applications", "share": "Share", "bads": "Defaults", "bad_rate": "Bad rate",
     "bad_rate_ci_low": "95% CI low", "bad_rate_ci_high": "95% CI high", "loan_amount": "Loan amount (CU)",
     "credit_loss_if_approved": "Credit loss if approved (CU)", "net_value_if_approved": "Net value if approved (CU)",

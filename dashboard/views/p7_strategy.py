@@ -30,14 +30,19 @@ with tab1:
         cap = c4.slider("Review capacity (share of applications)", 0.00, 0.15, float(rev0.capacity_share), 0.005, format="%.3f")
     rv = Review(cost, catch, gdec, cap)
     tiers = assign_tiers(pH, g, l, rv, capacity=cap * len(T))
+    wanted = int((assign_tiers(pH, g, l, rv, capacity=None) == 1).sum())
     tab, tot = tier_outcomes(tiers, y, g, l, amt, rv, months=MONTHS)
     two = evaluate_policy(approve_ev_positive(pH, g, l), y, g, l)
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Approval rate (after review)", f"{tot['approval_rate']:.1%}")
     k2.metric("Bad rate of approved loans", f"{tot['bad_rate_approved']:.2%}")
-    k3.metric("Reviews per month", f"{tot['reviews_per_month']:,.0f}", help=f"Capacity: {cap * len(T) / MONTHS:,.0f} reviews a month")
+    k3.metric("Reviews per month", f"{tot['reviews_per_month']:,.0f}", help=f"Capacity: {cap * len(T) / MONTHS:,.0f} reviews a month; {wanted / MONTHS:,.0f} a month "
+              "would be worth reviewing, so when the cap binds the most valuable are kept. Booked-loan volume.")
     k4.metric("Net profit vs two-tier rule", charts.fmt_money(tot["net_profit"]), charts.fmt_money(tot["net_profit"] - two["net_profit"]))
-    st.plotly_chart(charts.tier_bars(tab), use_container_width=True)
+    empty_title = None
+    if (tiers == 1).sum() == 0:
+        empty_title = "No review capacity is set, so no application goes to review" if cap == 0 and wanted else "No application is worth reviewing with these settings"
+    st.plotly_chart(charts.tier_bars(tab, title=empty_title), use_container_width=True)
     show = tab[["tier", "applications", "share", "per_month", "bad_rate", "median_amount", "credit_loss", "forgone_margin", "review_cost", "net_profit"]]
     st.dataframe(styled(show, {"applications": "{:,.0f}", "share": "{:.1%}", "per_month": "{:,.0f}", "bad_rate": "{:.2%}", "median_amount": "{:,.0f}",
                                "credit_loss": "{:,.0f}", "forgone_margin": "{:,.0f}", "review_cost": "{:,.0f}", "net_profit": "{:,.0f}"}), hide_index=True, use_container_width=True)
@@ -71,10 +76,16 @@ with tab3:
                                          fmt=".3f", bands=((0.10, "investigate", charts.STATUS["warning"]), (0.25, "act", charts.STATUS["critical"]))), use_container_width=True)
     c2.plotly_chart(charts.monitor_lines(mon[mon.decision_month >= 201911], "gini", "Rank-ordering held up through the shock", "Gini by decision month, out-of-sample months only", fmt=".3f"),
                     use_container_width=True)
-    c1.plotly_chart(charts.monitor_lines(mon, "calibration_ratio", "The PD level drifted with the population", "Mean predicted PD ÷ observed bad rate by month (1.0 = calibrated)", fmt=".2f",
+    oos = mon[mon.decision_month >= 201911]
+    c1.plotly_chart(charts.monitor_lines(oos, "calibration_ratio", charts.calibration_drift_title(oos),
+                                         "Mean predicted PD ÷ observed bad rate by month (1.0 = calibrated; Nov-Dec 2019 is the calibration window; Oct 2020 = 1-5 Oct)", fmt=".2f",
                                          bands=((0.8, "0.80", charts.STATUS["warning"]), (1.25, "1.25", charts.STATUS["warning"]))), use_container_width=True)
-    c2.plotly_chart(charts.monitor_lines(mon, "approval_rate_cost_rule", "Approval rate under the same rule moved with the mix", "Share approved by the cost-based rule by month", fmt=".1%"),
-                    use_container_width=True)
+    recent = mon[mon.decision_month >= 202001].approval_rate_cost_rule
+    fig_ar = charts.monitor_lines(oos, "approval_rate_cost_rule",
+                                  f"Approval rates under the rule stayed between {recent.min():.0%} and {recent.max():.0%} for both models, so they did not flag the April 2020 shift",
+                                  "Share approved by the cost-based rule by decision month (%)", fmt=".1%")
+    fig_ar.update_yaxes(tickformat=".0%")
+    c2.plotly_chart(fig_ar, use_container_width=True)
     csi = load("csi_flags")
     st.markdown("**Inputs that drifted (characteristic stability index ≥ 0.10)**")
     st.dataframe(styled(csi, {"max_csi": "{:.2f}"}), hide_index=True, use_container_width=True)
@@ -84,6 +95,7 @@ with tab3:
 | Score PSI vs development sample | monthly | ≥ 0.10 | ≥ 0.25 | Risk analytics |
 | Feature CSI (12 most influential inputs, every categorical input, inputs already shifting) | monthly | ≥ 0.10 | ≥ 0.25 | Risk analytics |
 | Approval rate under the rule | weekly | ± 3 pp vs plan | ± 5 pp | Credit policy |
+| Early delinquency (30+ days past due at month 3) vs expected | monthly | + 20% vs expected | + 40% | Risk analytics |
 | Calibration ratio (mature vintages) | monthly | outside 0.8 to 1.25 | two months in a row | Model validation |
 | Gini (mature vintages) | quarterly | 5 points below validation | 10 points below | Model validation |
 | Override rate and override bad rate | monthly | > 5% of decisions | override bad rate above model-approved | Credit policy |
@@ -94,7 +106,7 @@ with tab4:
     mv, room = m["model_value"], m["room"][CH]
     rec = pd.DataFrame([
         {"For": "Head of Credit Policy", "Do": "Adopt the cost-based rule as the cut-off policy, once Finance confirms the margins: product break-evens of 25% (cash), 14% (cards), 8% (point-of-sale)",
-         "Expected impact": f"decline {room['declined_share']:.1%} of today's approvals (bad rate {room['tail_bad_rate']:.0%}); total cost of wrong decisions {m['vs_today'][CH]['total_cost_change']:+.0%} vs today's policy",
+         "Expected impact": f"decline {room['declined_share']:.1%} of today's approvals (bad rate {room['tail_bad_rate']:.1%}); total cost of wrong decisions {m['vs_today'][CH]['total_cost_change']:+.0%} vs today's policy",
          "Measure": "approval rate, bad rate of approved loans by vintage, net profit", "Risk": "margins are assumptions; Finance must sign off the cost matrix"},
         {"For": "Model Risk / Validation", "Do": "Validate the challenger and run it as a champion/challenger test (20% of traffic, stratified by product)",
          "Expected impact": f"{100 * mv['same_bad_rate']['extra_approvals_pp']:+.1f} pp approvals versus a rebuilt scorecard applying the same rule, at its bad rate",
@@ -126,10 +138,10 @@ default more often in this book, and the calibration ratio shows whether the mod
 
 **Monitoring.** PSI (population stability index) compares this month's score distribution with the one the model was built on; CSI does the same
 for one input. They react as soon as applicants change, before any defaults are observed. Gini and calibration need outcomes, so they lag. The
-COVID months are the lesson: the challenger's score PSI stayed below 0.10 (the scorecard's reached about 0.15, driven by the employment field's
+COVID months are the lesson: the challenger's score PSI stayed below 0.10 (the scorecard's reached about 0.15, in step with the employment field's
 collapse), yet the bad rate halved and predicted PDs ran well above actual. Calibration showed it, months later, while feature CSI caught the
-data-capture break (the employment field) at once. Part of the drop may also be loans too recent to have defaulted yet (the outcome horizon is not
-disclosed); the back-test is illustrative. Hence the plan tracks an early outcome (30+ days
-past due at month 3) next to PSI, and treats "PSI fine, calibration off, Gini fine" as a level problem: re-check cut-offs and calibration, do not
+data-capture break (the employment field) at once. The fall in the bad rate may reflect COVID-era measures, the lender's own tightening or loans
+too recent to have defaulted (the outcome horizon is not disclosed); the data cannot separate these, so the back-test is illustrative. Hence the
+plan tracks an early outcome (30+ days past due at month 3) next to PSI, and treats "PSI fine, calibration off, Gini fine" as a level problem: re-check cut-offs and calibration, do not
 rebuild the model.
 """)

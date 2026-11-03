@@ -2,7 +2,7 @@
 -- 06_abl_snapshot_as_provided.sql · ABLATION ONLY (not used by the production model)
 -- Purpose: rebuild the features the way a naive modeller would, using the provided snapshot fields as-is, so that
 --          notebooks/02 can measure how much the ~14-day look-ahead leak inflates offline results.
--- Inputs : stg_base (01), fct_application_features (05); raw train_applprev_1_*, train_static_0_*, train_static_cb_0
+-- Inputs : table stg_base (sql/01); raw train_applprev_1_*, train_static_0_*, train_static_cb_0 and train_person_1 (applicant income)
 -- Output : table abl_features_as_provided, 1 row per case_id, with
 --          * the same ap_* columns as int_applprev_pit but computed over ALL previous applications (no "created before
 --            the decision" filter, no 15-row window) and with raw snapshot days-past-due;

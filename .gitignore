@@ -8,6 +8,12 @@ artifacts/
 *.pkl
 *.joblib
 *.txt.model
+# Kaggle download if unpacked inside the repo by mistake (the data belongs in ~/projects/data-projects/datasets/)
+*.zip
+parquet_files/
+csv_files/
+feature_definitions.csv
+sample_submission.csv
 
 # Python / tooling
 .venv/

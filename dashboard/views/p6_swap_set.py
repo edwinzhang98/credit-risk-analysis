@@ -27,7 +27,7 @@ def fmt_swap(sw):
 
 if mode.startswith("1"):
     c1, c2 = st.columns(2)
-    model = c1.radio("Model used for the new cut-off", [CP, CH], horizontal=True)
+    model = c1.radio("Model used for the new cut-off", [CH, CP], horizontal=True)
     p = pC if model == CP else pH
     rule_kind = c2.radio("New cut-off", ["Cost-based rule (product break-evens)", "Single PD cut-off"], horizontal=True)
     if rule_kind.startswith("Single"):
@@ -41,21 +41,25 @@ if mode.startswith("1"):
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Applications declined (swap-outs)", f"{out.applications:,.0f}", help=f"{out.share:.1%} of the loans the historical policy approved")
     k2.metric("Their bad rate", f"{out.bad_rate:.1%}", help=f"Whole book: {B:.2%}; 95% interval {out.bad_rate_ci_low:.1%} to {out.bad_rate_ci_high:.1%}")
-    k3.metric("Book bad rate after", f"{y[new].mean():.2%}", f"{y[new].mean() - B:+.2%}", delta_color="inverse")
+    k3.metric("Book bad rate after", f"{y[new].mean():.2%}", f"{100 * (y[new].mean() - B):+.2f} pp", delta_color="inverse")
     k4.metric("Net value of declining them", charts.fmt_money(-out.net_value_if_approved),
               help="Credit losses avoided minus margin forgone on the declined good customers, over the quarter.")
     st.dataframe(fmt_swap(sw[sw.applications > 0]), hide_index=True, use_container_width=True)
 
     st.markdown("**Can the room be spent on more approvals?** Only applicants the lender rejected in the past could be added, and their bad rate is not "
                 "in the data. Choose an assumption for it to see how many new approvals each declined loan pays for at an unchanged book bad rate:")
-    r_mult = st.slider("Assumed bad rate of newly approved applicants, as a multiple of today's book bad rate", 1.05, 6.0, 2.0, 0.05)
+    r_mult = st.slider("Assumed bad rate of newly approved applicants, as a multiple of today's book bad rate", 1.5, 6.0, 2.0, 0.1,
+                       help="Below about 2x the exchange rate explodes (more than 3 new approvals per declined loan) and would soon exceed the volume the lender rejects today.")
     r = r_mult * B
     h = headroom_table(B, float(out.bad_rate), int(out.applications), [r]).iloc[0]
     k1, k2, k3 = st.columns(3)
     k1.metric("Assumed bad rate of new approvals", f"{r:.1%}")
-    if np.isfinite(h.new_approvals_per_decline):
+    if out.applications < 500 or out.bad_rate <= B:
+        st.warning(f"Only {out.applications:,.0f} loans are declined at this cut-off, at a bad rate of {out.bad_rate:.1%}: too few, or not risky enough, "
+                   "to fund new approvals. Lower the cut-off to see the exchange rate.")
+    elif np.isfinite(h.new_approvals_per_decline):
         k2.metric("New approvals per declined loan", f"{h.new_approvals_per_decline:.2f}")
-        k3.metric("Net change in approvals per month", f"{h.net_change_in_approvals / 3:+,.0f}")
+        k3.metric("Net change in approvals per month", f"{h.net_change_in_approvals / 3:+,.0f}", help="Booked-loan volume; an upper bound, limited by how many applicants the lender rejects today.")
     grid = headroom_table(B, float(out.bad_rate), int(out.applications), np.linspace(B * 1.02, float(out.bad_rate) * 1.15, 60))
     fig = charts.headroom_chart(grid, B, float(out.bad_rate))
     if np.isfinite(h.new_approvals_per_decline):
@@ -85,7 +89,9 @@ else:
     k3.metric("Credit losses", charts.fmt_money(s.loc["credit_loss", "proposed"]), charts.fmt_money(s.loc["credit_loss", "change"]), delta_color="inverse")
     k4.metric("Net profit", charts.fmt_money(s.loc["net_profit", "proposed"]), charts.fmt_money(s.loc["net_profit", "change"]))
     c1, c2 = st.columns([1.1, 1])
-    c1.plotly_chart(charts.swap_bars(sw), use_container_width=True)
+    status = "the champion's cost-based rule" if sq.endswith("rule") else f"the champion approving {cur.mean():.1%}"
+    c1.plotly_chart(charts.swap_bars(sw, subtitle=f"Status quo: {status}; proposed: the challenger at {match}. Bad rate (%) with 95% intervals; axis labels = applications"),
+                    use_container_width=True)
     c2.markdown("**The 2 × 2 swap set**")
     c2.dataframe(fmt_swap(sw), hide_index=True, use_container_width=True)
     prof = T.assign(cell=np.select([cur & new, ~cur & new, cur & ~new], ["Approved by both", "Swap-in", "Swap-out"], "Declined by both"))
@@ -99,8 +105,7 @@ else:
 
 how_to_read("""
 **Swap set** is the standard way risk teams describe a policy change. Every application lands in one of four cells: approved under both
-policies, declined under both, **swap-in** (declined today, approved tomorrow, "从拒变批") or **swap-out** (approved today, declined tomorrow,
-"从批变拒"). A change is worth making when swap-outs default much more often than swap-ins, and the money column says by how much.
+policies, declined under both, **swap-in** (declined today, approved tomorrow) or **swap-out** (approved today, declined tomorrow). A change is worth making when swap-outs default much more often than swap-ins, and the money column says by how much.
 
 **Question 1, today's book.** The status quo is what actually happened: every loan in the data was approved. Tightening the cut-off only
 creates swap-outs, and we can see exactly how they performed. Loosening would create swap-ins from people the lender rejected in the past;

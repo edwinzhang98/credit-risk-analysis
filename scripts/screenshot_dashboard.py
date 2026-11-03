@@ -23,6 +23,7 @@ PAGES = [
     ("swap_set", "Swap-set Analysis"),
     ("strategy", "Strategy & Monitoring Plan"),
 ]
+PAGE_HEIGHT = {"threshold": 1620, "swap_set": 1350}  # pages whose main chart sits further down (Streamlit scrolls inside its own container)
 
 
 def free_port() -> int:
@@ -67,6 +68,7 @@ def main() -> None:
             browser = p.chromium.launch()
             page = browser.new_page(viewport={"width": 1440, "height": args.height}, device_scale_factor=1.5)
             for i, (slug, title) in enumerate(PAGES, start=1):
+                page.set_viewport_size({"width": 1440, "height": PAGE_HEIGHT.get(slug, args.height)})
                 t0 = time.time()
                 page.goto(f"{base}/{slug}" if i > 1 else base, wait_until="networkidle")
                 page.wait_for_selector("h1", timeout=60_000)

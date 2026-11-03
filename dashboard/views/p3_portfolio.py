@@ -10,11 +10,13 @@ from src.metrics import wilson_interval
 page_header("Portfolio snapshot", "Where is the risk in the booked portfolio, and is the picture stable over time?")
 
 cube = load("portfolio_cube")
-WINDOWS = {"Train (Jan-Oct 2019)": "train", "Validation (Nov-Dec 2019)": "valid", "Out-of-time test (Jan-Mar 2020)": "test", "Monitoring (Apr-Oct 2020)": "monitor"}
-c1, c2, c3 = st.columns([1.4, 1.2, 1.4])
+WINDOWS = {"Train": "train", "Validation": "valid", "Out-of-time test": "test", "Monitoring": "monitor"}
 seg_list = list(cube.segment.unique())
+c1, _ = st.columns([1.2, 1.8])
+c2, c3 = st.columns([1.6, 1.4])
 segment = c1.selectbox("Break the bad rate down by", seg_list, index=seg_list.index("Worst lateness, 24 months") if "Worst lateness, 24 months" in seg_list else 0)
-windows = c2.multiselect("Period", list(WINDOWS), default=list(WINDOWS)[:3])
+windows = c2.multiselect("Period", list(WINDOWS), default=list(WINDOWS)[:3],
+                         help="Train Jan to Oct 2019 · Validation Nov to Dec 2019 · Out-of-time test Jan to Mar 2020 · Monitoring Apr to Oct 2020")
 products = c3.multiselect("Product", list(PRODUCT_NAMES), default=list(PRODUCT_NAMES), format_func=lambda k: PRODUCT_NAMES[k])
 
 d = cube[(cube.segment == segment) & cube.split.isin([WINDOWS[w] for w in windows]) & cube.product_type.isin(products)]
@@ -53,8 +55,9 @@ whiskers are 95% confidence intervals: if a whisker is long, the group is small 
 of the portfolio each group represents. The line chart below shows the same bad rates month by month.
 
 **What to try.** Switch the breakdown to *Worst lateness, 24 months* or *Rejections, last 12 months*: past repayment
-behaviour separates good and bad customers far more than loan size or income does, which is why it dominates both models. Switch the period to
-*Monitoring* to see the whole portfolio's bad rate drop after April 2020.
+behaviour separates good and bad customers more than loan size or income does. It carries most of the scorecard's information value and, together
+with earlier applications, about half of the challenger's impact (no single input dominates the challenger). Switch the period to *Monitoring* to
+see the whole portfolio's bad rate drop after April 2020.
 
 **What it is not.** These are correlations in loans the lender already approved. They do not say that, for example, a longer loan term *causes*
 default, and they say nothing about applicants the lender rejected. Age and sex are shown only because fair-lending monitoring requires it;
