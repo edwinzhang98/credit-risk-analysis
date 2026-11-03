@@ -1,0 +1,495 @@
+{
+  "data": {
+    "loans": 1526659,
+    "defaults": 47994,
+    "bad_rate": 0.03143727577671242,
+    "first_decision": "2019-01-01",
+    "last_decision": "2020-10-05",
+    "test_loans": 222681,
+    "test_bad_rate": 0.044139374261836437,
+    "test_months": "2020-01 to 2020-03"
+  },
+  "leakage": {
+    "raw_columns_reviewed": 294,
+    "kept": 41,
+    "rebuilt": 27,
+    "dropped": 223,
+    "n_features": 90,
+    "gini_test_pit": 0.5782241766526781,
+    "gini_test_naive_offline": 0.5876209633151144,
+    "gini_test_naive_decision_time": 0.5851849890986391,
+    "proxy_auc_sex": 0.6309071360043327,
+    "proxy_auc_age50": 0.836616662341206,
+    "n_unstable_features": 5
+  },
+  "models": {
+    "scorecard_variables": 16,
+    "lgbm_rounds": 963,
+    "gini_test_challenger": 0.5782241766526781,
+    "gini_test_champion": 0.46249694547016906,
+    "gini_valid_challenger": 0.5819045839386989,
+    "gini_valid_champion": 0.4683482558554066,
+    "auc_test_challenger": 0.7891120883263391,
+    "auc_test_champion": 0.7312484727350845,
+    "ks_test_challenger": 0.43190870416358085,
+    "ks_test_champion": 0.3424741432468871,
+    "calibration_ratio_test_challenger": 0.8994046522031391,
+    "calibration_ratio_test_champion": 0.8558026224191914,
+    "bad_rate_valid": 0.03507872453029902,
+    "bad_rate_test": 0.044139374261836437,
+    "rule_approval_challenger": 0.9073697351817174,
+    "rule_approval_champion": 0.925027281178008,
+    "rule_bad_rate_challenger": 0.03168954833856296,
+    "rule_bad_rate_champion": 0.035657763148951874,
+    "rule_profit_challenger": 991806148.5149848,
+    "rule_profit_champion": 945459528.7455599,
+    "p95_bad_rate_challenger": 0.03486695627921928,
+    "p95_bad_rate_champion": 0.037726840843878666,
+    "p95_loss_challenger": 278973726.7987801,
+    "p95_loss_champion": 332356463.24916005,
+    "gini_test_new_challenger": 0.4213249060620543,
+    "gini_test_existing_challenger": 0.587697383083222,
+    "top_driver": "Years with current employer",
+    "top_driver_group": "Affordability"
+  },
+  "economics": {
+    "lgd": 0.75,
+    "ead_share": 0.8,
+    "loss_rate": 0.6000000000000001,
+    "margin_by_product": {
+      "CAL": 0.2,
+      "COL": 0.05,
+      "REL": 0.1
+    },
+    "margin_default": 0.1,
+    "breakeven_by_product": {
+      "CAL": 0.25,
+      "COL": 0.07692307692307691,
+      "REL": 0.14285714285714285
+    },
+    "review": {
+      "cost_per_case": 300,
+      "bad_catch_rate": 0.4,
+      "good_decline_rate": 0.1,
+      "capacity_share": 0.05
+    }
+  },
+  "loss_curve": {
+    "Champion (scorecard)": {
+      "default_0_5": {
+        "approval_rate": 0.9999865278133294,
+        "bad_rate_approved": 0.044139968923737415,
+        "total_cost": 393324215.94196004,
+        "net_profit": 899490179.7872201
+      },
+      "best_single_cutoff": 0.1075,
+      "best_single_total_cost": 375626785.1084754,
+      "rule": {
+        "approval_rate": 0.925027281178008,
+        "bad_rate_approved": 0.035657763148951874,
+        "credit_loss": 318718982.26356006,
+        "forgone_margin": 28635884.720060002,
+        "total_cost": 347354866.98362005,
+        "net_profit": 945459528.7455599
+      },
+      "rule_cost_saving_vs_default": 0.11687393528071854,
+      "rule_credit_loss_reduction_vs_default": 0.18961734033040067,
+      "rule_capture_rate": 0.25272153830501576,
+      "rule_false_positive_rate": 0.06676470035517637
+    },
+    "Challenger (LightGBM)": {
+      "default_0_5": {
+        "approval_rate": 0.9997530099110387,
+        "bad_rate_approved": 0.044060442176565184,
+        "total_cost": 391691073.0984601,
+        "net_profit": 901123322.6307201
+      },
+      "best_single_cutoff": 0.1475,
+      "best_single_total_cost": 326309031.95651233,
+      "rule": {
+        "approval_rate": 0.9073697351817174,
+        "bad_rate_approved": 0.03168954833856296,
+        "credit_loss": 254104947.48018003,
+        "forgone_margin": 46903299.734015,
+        "total_cost": 301008247.214195,
+        "net_profit": 991806148.5149848
+      },
+      "rule_cost_saving_vs_default": 0.2315161925109025,
+      "rule_credit_loss_reduction_vs_default": 0.35086112364193356,
+      "rule_capture_rate": 0.34856038254145894,
+      "rule_false_positive_rate": 0.08081201961926597
+    }
+  },
+  "approve_all": {
+    "bad_rate_approved": 0.044139374261836437,
+    "credit_loss": 393294425.12196004,
+    "net_profit": 899519970.60722
+  },
+  "room": {
+    "Champion (scorecard)": {
+      "declined": 16695,
+      "declined_share": 0.074972718821992,
+      "tail_bad_rate": 0.14878706199460917,
+      "tail_bad_rate_ci": [
+        0.14346948183601604,
+        0.15426623655058147
+      ],
+      "credit_loss_avoided": 74575442.85840002,
+      "margin_forgone": 28635884.720060002,
+      "net_gain": 45939558.13834001,
+      "book_bad_rate_after": 0.035657763148951874
+    },
+    "Challenger (LightGBM)": {
+      "declined": 20627,
+      "declined_share": 0.09263026481828265,
+      "tail_bad_rate": 0.16609298492267416,
+      "tail_bad_rate_ci": [
+        0.16107631978364906,
+        0.17123400147828144
+      ],
+      "credit_loss_avoided": 139189477.64178002,
+      "margin_forgone": 46903299.734015,
+      "net_gain": 92286177.90776502,
+      "book_bad_rate_after": 0.03168954833856296
+    }
+  },
+  "headroom_points": [
+    {
+      "swap_in_bad_rate": 0.05517421782729555,
+      "new_approvals_per_decline": 11.05168459683223,
+      "swap_ins_affordable": 227963.0981788584,
+      "net_change_in_approvals": 207336.0981788584,
+      "swap_in_bad_rate_vs_book": 1.25,
+      "swap_ins_per_month": 75987.6993929528,
+      "net_change_per_month": 69112.03272628614
+    },
+    {
+      "swap_in_bad_rate": 0.06620906139275465,
+      "new_approvals_per_decline": 5.525842298416118,
+      "swap_ins_affordable": 113981.54908942927,
+      "net_change_in_approvals": 93354.54908942927,
+      "swap_in_bad_rate_vs_book": 1.4999999999999998,
+      "swap_ins_per_month": 37993.84969647643,
+      "net_change_per_month": 31118.18302980976
+    },
+    {
+      "swap_in_bad_rate": 0.08827874852367287,
+      "new_approvals_per_decline": 2.7629211492080583,
+      "swap_ins_affordable": 56990.774544714615,
+      "net_change_in_approvals": 36363.774544714615,
+      "swap_in_bad_rate_vs_book": 2.0,
+      "swap_ins_per_month": 18996.924848238206,
+      "net_change_per_month": 12121.258181571538
+    },
+    {
+      "swap_in_bad_rate": 0.1324181227855093,
+      "new_approvals_per_decline": 1.3814605746040294,
+      "swap_ins_affordable": 28495.387272357315,
+      "net_change_in_approvals": 7868.387272357314,
+      "swap_in_bad_rate_vs_book": 2.9999999999999996,
+      "swap_ins_per_month": 9498.462424119105,
+      "net_change_per_month": 2622.795757452438
+    },
+    {
+      "swap_in_bad_rate": 0.16609298492267416,
+      "new_approvals_per_decline": 1.0,
+      "swap_ins_affordable": 20627.0,
+      "net_change_in_approvals": 0.0,
+      "swap_in_bad_rate_vs_book": 3.7629211492080583,
+      "swap_ins_per_month": 6875.666666666667,
+      "net_change_per_month": 0.0
+    }
+  ],
+  "model_value": {
+    "status_quo": {
+      "approval_rate": 0.925027281178008,
+      "bad_rate_approved": 0.035657763148951874,
+      "net_profit": 945459528.7455599
+    },
+    "same_bad_rate": {
+      "approval_rate": 0.9581419160143883,
+      "extra_approvals_pp": 0.03311463483638022,
+      "extra_approvals_per_month": 2457.9999999999945,
+      "net_profit_change": 20788440.937875032
+    },
+    "same_approval_rate": {
+      "bad_rate_approved": 0.03217208936529667,
+      "bad_rate_change_pp": -0.003485673783655205,
+      "credit_loss_change": -68941293.76578003,
+      "credit_loss_change_pct": -0.21630746081126107,
+      "net_profit_change": 18425892.819664955
+    },
+    "rule_vs_rule": {
+      "approval_rate_change": -0.017657545996290658,
+      "bad_rate_change": -0.003968214810388913,
+      "net_profit_change": 46346619.769424915,
+      "credit_loss_change": -64614034.78338003
+    },
+    "swap_rule_vs_rule": [
+      {
+        "cell": "Approved by both",
+        "applications": 197278,
+        "share": 0.8859220140020927,
+        "bads": 6065,
+        "bad_rate": 0.030743417917862104,
+        "bad_rate_ci_low": 0.029990758664851125,
+        "bad_rate_ci_high": 0.03151435250803646,
+        "loan_amount": 10656582061.814,
+        "credit_loss_if_approved": 247178974.91118002,
+        "margin_if_approved": 1237055006.160725,
+        "net_value_if_approved": 989876031.2495451
+      },
+      {
+        "cell": "Swap-in (declined -> approved)",
+        "applications": 4776,
+        "share": 0.021447721179624665,
+        "bads": 338,
+        "bad_rate": 0.07077051926298157,
+        "bad_rate_ci_low": 0.06383727114228469,
+        "bad_rate_ci_high": 0.07839371826958202,
+        "loan_amount": 150379140.8478,
+        "credit_loss_if_approved": 6925972.569,
+        "margin_if_approved": 8856089.83444,
+        "net_value_if_approved": 1930117.2654400002
+      },
+      {
+        "cell": "Swap-out (approved -> declined)",
+        "applications": 8708,
+        "share": 0.03910526717591532,
+        "bads": 1280,
+        "bad_rate": 0.14699127239320164,
+        "bad_rate_ci_low": 0.1397095772211377,
+        "bad_rate_ci_high": 0.15458429515597255,
+        "loan_amount": 575971934.3011999,
+        "credit_loss_if_approved": 71540007.35238001,
+        "margin_if_approved": 27123504.848395,
+        "net_value_if_approved": -44416502.503985
+      },
+      {
+        "cell": "Declined by both",
+        "applications": 11919,
+        "share": 0.05352499764236733,
+        "bads": 2146,
+        "bad_rate": 0.18004866180048662,
+        "bad_rate_ci_low": 0.1732540615820395,
+        "bad_rate_ci_high": 0.18704944190491452,
+        "loan_amount": 486476600.5424,
+        "credit_loss_if_approved": 67649470.28940001,
+        "margin_if_approved": 19779794.88562,
+        "net_value_if_approved": -47869675.40378001
+      }
+    ]
+  },
+  "three_tier": {
+    "capacity_per_month": 3711.3500000000004,
+    "tiers": [
+      {
+        "tier": "Auto-approve",
+        "applications": 192817,
+        "share": 0.8658888724228829,
+        "per_month": 64272.333333333336,
+        "bads": 5344,
+        "bad_rate": 0.02771539853851061,
+        "median_amount": 35792.0,
+        "approved": 192817.0,
+        "approved_bads": 5344.0,
+        "credit_loss": 184678166.02458003,
+        "margin": 1146685560.440865,
+        "forgone_margin": 0.0,
+        "review_cost": 0.0,
+        "net_profit": 962007394.416285
+      },
+      {
+        "tier": "Manual review",
+        "applications": 11134,
+        "share": 0.04999977546355549,
+        "per_month": 3711.3333333333335,
+        "bads": 1360,
+        "bad_rate": 0.12214837434884139,
+        "median_amount": 96955.0,
+        "approved": 9612.6,
+        "approved_bads": 816.0,
+        "credit_loss": 53893981.143,
+        "margin": 98799296.48901,
+        "forgone_margin": 10977699.609889997,
+        "review_cost": 3340200.0,
+        "net_profit": 41565115.34601001
+      },
+      {
+        "tier": "Decline",
+        "applications": 18730,
+        "share": 0.08411135211356155,
+        "per_month": 6243.333333333333,
+        "bads": 3125,
+        "bad_rate": 0.16684463427656165,
+        "median_amount": 28000.0,
+        "approved": 0.0,
+        "approved_bads": 0.0,
+        "credit_loss": 0.0,
+        "margin": 0.0,
+        "forgone_margin": 36351839.18941499,
+        "review_cost": 0.0,
+        "net_profit": 0.0
+      }
+    ],
+    "totals": {
+      "applications": 222681,
+      "approval_rate": 0.9090564529528788,
+      "bad_rate_approved": 0.030430332322940915,
+      "review_rate": 0.04999977546355549,
+      "reviews_per_month": 3711.3333333333335,
+      "credit_loss": 238572147.16758004,
+      "forgone_margin": 47329538.79930499,
+      "review_cost": 3340200.0,
+      "net_profit": 1003572509.762295
+    },
+    "uncapped_review_per_month": 5987.666666666667,
+    "two_tier_net_profit": 991806148.5149848,
+    "uplift_vs_two_tier": 11766361.247310162,
+    "min_amount_for_review": {
+      "Cash loan": 6666.666666666666,
+      "Point-of-sale loan": 21666.666666666664,
+      "Revolving (card)": 11666.666666666668
+    }
+  },
+  "fairness": {
+    "min_air": {
+      "Challenger + employment status": {
+        "Age band": 0.8791116996500845,
+        "Sex": 0.9951945360487778
+      },
+      "Challenger cost rule (recommended)": {
+        "Age band": 0.8929527521557881,
+        "Sex": 0.997886609542363
+      },
+      "Champion cost rule": {
+        "Age band": 0.9404429534283522,
+        "Sex": 0.9961211551377924
+      }
+    }
+  },
+  "calibration_drift": [
+    {
+      "view": "As calibrated on Nov-Dec 2019",
+      "mean_pd": 0.03969915855643119,
+      "observed_bad_rate": 0.044139374261836437,
+      "calibration_ratio": 0.8994046522031391,
+      "rule_approval_rate": 0.9073697351817174,
+      "rule_bad_rate_of_approved": 0.03168954833856296,
+      "rule_net_profit": 991806148.5149848
+    },
+    {
+      "view": "Hindsight: level shifted to the test quarter's base rate",
+      "mean_pd": 0.04906855980405834,
+      "observed_bad_rate": 0.044139374261836437,
+      "calibration_ratio": 1.1116732084370247,
+      "rule_approval_rate": 0.8763567614659535,
+      "rule_bad_rate_of_approved": 0.029726156558099494,
+      "rule_net_profit": 994373191.4324448
+    },
+    {
+      "view": "Stress: PD odds +25% before applying the rule",
+      "mean_pd": 0.04838300495260909,
+      "observed_bad_rate": 0.044139374261836437,
+      "calibration_ratio": 1.096141614187806,
+      "rule_approval_rate": 0.8788580974577984,
+      "rule_bad_rate_of_approved": 0.02989192917912164,
+      "rule_net_profit": 994035412.2457951
+    }
+  ],
+  "monitoring": {
+    "psi_max_monitor_challenger": 0.0825508589616947,
+    "psi_max_test_challenger": 0.007555378595134971,
+    "csi_flags": [
+      {
+        "feature": "ap_days_since_first_app",
+        "first_month": 202007,
+        "months_flagged": 4,
+        "max_csi": 0.11568964658592754
+      },
+      {
+        "feature": "employment_years",
+        "first_month": 202004,
+        "months_flagged": 7,
+        "max_csi": 0.8647550648285366
+      },
+      {
+        "feature": "loan_term_months",
+        "first_month": 201903,
+        "months_flagged": 9,
+        "max_csi": 0.22565608771405907
+      },
+      {
+        "feature": "monthly_payment",
+        "first_month": 202007,
+        "months_flagged": 2,
+        "max_csi": 0.11883527759550289
+      },
+      {
+        "feature": "payment_to_income",
+        "first_month": 202008,
+        "months_flagged": 1,
+        "max_csi": 0.13153144660301913
+      }
+    ]
+  },
+  "test_design": {
+    "sizes": [
+      {
+        "test": "Below-cut-off test",
+        "question": "Do applicants just below today's line default at 25% less than the declined tail (16.6% vs 12.5%)?",
+        "loans_needed": 589,
+        "note": "approved test loans; expected net loss \u2248 4,474 CU each (price of information \u2248 2.6M CU)"
+      },
+      {
+        "test": "Champion / challenger",
+        "question": "Is the challenger's approved-book bad rate lower (3.57% vs 3.17%)?",
+        "loans_needed": 32438,
+        "note": "approved loans per arm; with 20% of traffic on the challenger \u2248 2.4 months of applications, then the outcome window"
+      }
+    ],
+    "below_cutoff_loans_needed": 589,
+    "cost_per_tail_loan": 4474.047506072867,
+    "price_of_information": 2635213.9810769185,
+    "champion_challenger_loans_per_arm": 32438,
+    "champion_challenger_months": 2.4081186217545802,
+    "challenger_traffic_share": 0.2
+  },
+  "sensitivity": [
+    {
+      "scenario": "Margins at the low end",
+      "breakeven_cash": 0.16666666666666663,
+      "breakeven_pos": 0.032258064516129024,
+      "breakeven_revolving": 0.07692307692307691,
+      "approval_rate": 0.7567372160175319,
+      "bad_rate_approved": 0.025968631127938235,
+      "net_profit": 460010254.220224,
+      "net_profit_gain_vs_approve_all": 147740881.97068405
+    },
+    {
+      "scenario": "Base case",
+      "breakeven_cash": 0.25,
+      "breakeven_pos": 0.07692307692307691,
+      "breakeven_revolving": 0.14285714285714285,
+      "approval_rate": 0.9073697351817174,
+      "bad_rate_approved": 0.03168954833856296,
+      "net_profit": 991806148.5149848,
+      "net_profit_gain_vs_approve_all": 92286177.90776479
+    },
+    {
+      "scenario": "Margins at the high end",
+      "breakeven_cash": 0.3181818181818182,
+      "breakeven_pos": 0.13043478260869565,
+      "breakeven_revolving": 0.19999999999999996,
+      "approval_rate": 0.957068631809629,
+      "bad_rate_approved": 0.03599832958741748,
+      "net_profit": 1593142356.885923,
+      "net_profit_gain_vs_approve_all": 56627586.040122986
+    }
+  ],
+  "scorecard_cutoff_points": {
+    "Cash loan": 523.5611386318534,
+    "Point-of-sale loan": 564.2224293633831,
+    "Revolving (card)": 543.8917839976183
+  }
+}
